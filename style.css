@@ -1,4 +1,7 @@
-body {
+/* =================================
+   General Styles (for all pages)
+   ================================= */
+   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: #f4f4f9;
     color: #333;
@@ -23,14 +26,24 @@ h1 {
     font-size: 2em;
 }
 
-#last-updated {
-    font-size: 0.9em;
-    color: #666;
-}
-
 main {
     width: 100%;
     max-width: 800px;
+}
+
+footer {
+    margin-top: auto;
+    padding-top: 20px;
+    font-size: 0.8em;
+    color: #aaa;
+}
+
+/* =================================
+   League Table Styles (index.html)
+   ================================= */
+#last-updated {
+    font-size: 0.9em;
+    color: #666;
 }
 
 .table-container {
@@ -51,7 +64,7 @@ th, td {
     padding: 12px 15px;
     border-bottom: 1px solid #ddd;
     text-align: center;
-    white-space: nowrap; /* Prevents text from wrapping */
+    white-space: nowrap;
 }
 
 thead th {
@@ -87,9 +100,85 @@ tbody tr:hover {
     display: none;
 }
 
-footer {
-    margin-top: auto;
-    padding-top: 20px;
-    font-size: 0.8em;
-    color: #aaa;
+
+/* =================================
+   Form Styles (form.html)
+   ================================= */
+form {
+    background-color: #fff;
+    padding: 25px 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+}
+
+/* Style for all input fields and select dropdowns */
+.form-group input[type="number"],
+.form-group input[type="date"],
+.form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box; /* Important for consistent sizing */
+    font-size: 1em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+button[type="submit"] {
+    width: 100%;
+    padding: 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+button[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+button[type="submit"]:active {
+    transform: scale(0.99);
+}
+
+button[type="submit"]:disabled {
+    background-color: #a0cffc;
+    cursor: not-allowed;
+}
+
+#response-message {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.error-message {
+    color: #d9534f; /* Red color */
+    font-size: 0.85em;
+    margin-top: 5px;
+    display: none; /* Hidden by default */
 }
