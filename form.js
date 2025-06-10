@@ -1,5 +1,5 @@
 // ===================================================================
-// == הדבק כאן את הקישור שקיבלת מהפריסה של GOOGLE APPS SCRIPT    ==
+// == הקישור שלך מהפריסה של GOOGLE APPS SCRIPT                   ==
 // ===================================================================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkgPNh4U78Vcx-ePb7rLkMY6rQhTKwJtq985wGSL-2F-tKiiSlOTSEr3452O9cZ7eu/exec";
 // ===================================================================
@@ -16,13 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitButton = document.getElementById('submit-button');
     const responseMessage = document.getElementById('response-message');
 
-    // --- NEW: Set max date to today to prevent future date selection ---
+    // --- Set max date to today to prevent future date selection ---
     const today = new Date();
-    // Format to YYYY-MM-DD which is required for the 'max' attribute
     const maxDate = today.toISOString().split('T')[0]; 
     dateInput.setAttribute('max', maxDate);
-    // -----------------------------------------------------------------
-
+    
     // --- Function to fetch existing data for a player and date ---
     const fetchExistingData = () => {
         const selectedDate = dateInput.value;
@@ -39,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         url.searchParams.append('name', selectedPlayer);
         url.searchParams.append('date', selectedDate);
 
+        // This is a simple GET request, it should work fine.
         fetch(url)
             .then(res => res.json())
             .then(res => {
@@ -118,8 +117,15 @@ document.addEventListener('DOMContentLoaded', () => {
             assists: parseInt(formData.get('assists'), 10)
         };
         
+        // ==========================================================
+        // ==  החזרתי את קוד ה-FETCH היציב והעובד שלך               ==
+        // == הוא כולל את ההגדרות החשובות שמונעות בעיות CORS      ==
+        // ==========================================================
         fetch(SCRIPT_URL, {
             method: 'POST',
+            mode: 'cors',
+            cache: 'no-cache',
+            redirect: 'follow',
             body: JSON.stringify(data)
         })
         .then(res => res.json())
@@ -135,6 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .finally(() => {
             submitButton.disabled = false;
+            // The button text will be correct based on the last data fetch
         });
     });
 });
