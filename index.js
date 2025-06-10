@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
-    // ==         שלב 1: הדבק כאן את שני הקישורים הנדרשים           ==
+    // ==               הקישורים שלך נשמרו כפי שהם                  ==
     // ===================================================================
     // קישור לקובץ CSV של גיליון "הזנת נתונים - משחקים"
     const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=1634847815&single=true&output=csv';
@@ -19,23 +19,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allPlayersList = [];
     let allGamesData = [];
+    let byGameViewRendered = false; // Flag to render by-game view only once
 
-    // --- NEW: Fetch both datasets at the same time ---
+    // --- Fetch both datasets at the same time ---
     Promise.all([
-        fetch(RAW_DATA_URL).then(res => res.text()),
-        fetch(PLAYERS_LIST_URL).then(res => res.text())
+        fetch(RAW_DATA_URL).then(res => {
+            if (!res.ok) throw new Error(`Failed to fetch RAW_DATA_URL: ${res.statusText}`);
+            return res.text();
+        }),
+        fetch(PLAYERS_LIST_URL).then(res => {
+            if (!res.ok) throw new Error(`Failed to fetch PLAYERS_LIST_URL: ${res.statusText}`);
+            return res.text();
+        })
     ])
     .then(([csvRawData, csvPlayersList]) => {
         loader.style.display = 'none';
 
         // 1. Parse the master list of all players
-        // Assumes the CSV has one column of names, skipping a header row if it exists.
         allPlayersList = csvPlayersList.trim().split('\n')
             .map(row => row.trim())
-            .filter(name => name && name.toLowerCase() !== 'שם השחקן'); // Filter out header and empty rows
+            .filter(name => name && name.toLowerCase() !== 'שם השחקן');
 
         if (allPlayersList.length === 0) {
-            throw new Error("Could not parse player list. Please ensure 'רשימת שחקנים' is published correctly.");
+            throw new Error("Could not parse player list. Please ensure 'רשימת שחקנים' is published correctly and contains names.");
         }
 
         // 2. Parse the raw game data
@@ -52,10 +58,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateParts = date.trim().split('/');
             if (dateParts.length !== 3) return null;
             const [day, month, year] = dateParts;
-            const isoDateString = `${year}-${month}-${day}`;
+            const isoDateString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
             
             return {
-                date: new Date(isoDateString).toISOString().split('T')[0],
+                date: isoDateString,
                 name: name.trim(),
                 games: parseInt(cells[3], 10) || 0,
                 goals: parseInt(cells[4], 10) || 0,
@@ -75,17 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     /**
-     * NEW: Calculates stats, ensuring all players from the master list are included.
+     * Calculates stats, ensuring all players from the master list are included.
      */
     function calculateOverallStats(playersList, rawData) {
         const stats = new Map();
-
-        // Initialize all players with 0 stats
         playersList.forEach(player => {
             stats.set(player, { name: player, games: 0, goals: 0, assists: 0 });
         });
-
-        // Add stats for players who played
         rawData.forEach(game => {
             if (stats.has(game.name)) {
                 const current = stats.get(game.name);
@@ -94,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 current.assists += game.assists;
             }
         });
-
         return Array.from(stats.values());
     }
 
@@ -102,6 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderOverallView() {
         overallContainer.innerHTML = '';
         const overallStats = calculateOverallStats(allPlayersList, allGamesData);
+
+        // --- NEW: Default sort by goals (descending) ---
+        overallStats.sort((a, b) => b.goals - a.goals);
+        // ---------------------------------------------
+
         const headers = [
             { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
             { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
@@ -110,9 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         const table = createTable(overallStats, headers);
         overallContainer.appendChild(table);
+
+        // --- NEW: Set initial sort indicator on 'goals' column ---
+        setInitialSortIndicator(table, 'goals');
+        // ---------------------------------------------------------
     }
     
-    /** NEW: Renders by-game view, showing all players for each game */
+    /** Renders by-game view, showing all players for each game */
     function renderByGameView() {
         byGameContainer.innerHTML = '';
         const groupedData = groupDataByDate(allGamesData);
@@ -125,19 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
 
+        if (sortedDates.length === 0) {
+            byGameContainer.innerHTML = '<p style="text-align:center; margin-top:20px;">לא נמצאו נתוני משחקים להצגה.</p>';
+            return;
+        }
+
         sortedDates.forEach(dateStr => {
             const gameDataForDate = groupedData[dateStr];
             
-            // Create a full list for this game date, including players who didn't play
-            const fullPlayerListForGame = allPlayersList.map(playerName => {
+            let fullPlayerListForGame = allPlayersList.map(playerName => {
                 const playerData = gameDataForDate.find(p => p.name === playerName);
-                if (playerData) {
-                    return playerData; // Return existing data
-                } else {
-                    // Return a 0-stat object for players who didn't play
-                    return { name: playerName, games: 0, goals: 0, assists: 0, date: dateStr };
-                }
+                return playerData || { name: playerName, games: 0, goals: 0, assists: 0, date: dateStr };
             });
+
+            // --- NEW: Default sort by goals (descending) for each game table ---
+            fullPlayerListForGame.sort((a, b) => b.goals - a.goals);
+            // -------------------------------------------------------------------
 
             const title = document.createElement('h2');
             title.className = 'game-title';
@@ -150,11 +163,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const table = createTable(fullPlayerListForGame, headers);
             tableContainer.appendChild(table);
             byGameContainer.appendChild(tableContainer);
+
+            // --- NEW: Set initial sort indicator on 'goals' column for this table ---
+            setInitialSortIndicator(table, 'goals');
+            // ----------------------------------------------------------------------
         });
     }
 
     // --- Other functions (groupDataByDate, createTable, sortTable) remain the same ---
-    
     function groupDataByDate(rawData) {
         const grouped = {};
         rawData.forEach(game => {
@@ -184,11 +200,20 @@ document.addEventListener('DOMContentLoaded', () => {
         data.forEach(item => {
             const row = tbody.insertRow();
             headers.forEach(header => {
-                row.insertCell().textContent = item[header.key] || 0;
+                row.insertCell().textContent = item[header.key] !== undefined ? item[header.key] : 0;
             });
         });
         return table;
     }
+    
+    // --- NEW: Helper function to set the visual indicator for default sort ---
+    function setInitialSortIndicator(table, key) {
+        const headerCell = table.querySelector(`th[data-key="${key}"]`);
+        if (headerCell) {
+            headerCell.classList.add('sort-desc');
+        }
+    }
+    // -------------------------------------------------------------------------
 
     function sortTable(table, colIndex, isNumeric) {
         const tbody = table.tBodies[0];
@@ -212,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => tbody.appendChild(row));
     }
 
+    // --- View Toggle Event Listeners ---
     overallBtn.addEventListener('click', () => {
         overallBtn.classList.add('active');
         byGameBtn.classList.remove('active');
@@ -224,8 +250,9 @@ document.addEventListener('DOMContentLoaded', () => {
         overallBtn.classList.remove('active');
         byGameContainer.classList.remove('hidden');
         overallContainer.classList.add('hidden');
-        if (byGameContainer.innerHTML === '') {
+        if (!byGameViewRendered) {
             renderByGameView();
+            byGameViewRendered = true; 
         }
     });
 });
