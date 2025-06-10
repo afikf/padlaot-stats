@@ -1,22 +1,21 @@
 // ===================================================================
-// == הקישור שלך מהפריסה של GOOGLE APPS SCRIPT                   ==
+// ==         הקישור שלך מהפריסה של GOOGLE APPS SCRIPT            ==
 // ===================================================================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkgPNh4U78Vcx-ePb7rLkMY6rQhTKwJtq985wGSL-2F-tKiiSlOTSEr3452O9cZ7eu/exec";
-// ===================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     // Form Elements
     const form = document.getElementById('stats-form');
     const dateInput = document.getElementById('game-date');
-    const dateError = document.getElementById('date-error');
     const playerNameSelect = document.getElementById('player-name');
     const gamesInput = document.getElementById('games');
     const goalsInput = document.getElementById('goals');
     const assistsInput = document.getElementById('assists');
     const submitButton = document.getElementById('submit-button');
+    const dateError = document.getElementById('date-error');
     const responseMessage = document.getElementById('response-message');
 
-    // --- Set max date to today to prevent future date selection ---
+    // --- Set max date to today ---
     const today = new Date();
     const maxDate = today.toISOString().split('T')[0]; 
     dateInput.setAttribute('max', maxDate);
@@ -32,12 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         responseMessage.textContent = 'בודק נתונים קיימים...';
         responseMessage.style.color = '#7f8c8d';
+        form.classList.add('loading'); // NEW: Visually disable the form
 
         const url = new URL(SCRIPT_URL);
         url.searchParams.append('name', selectedPlayer);
         url.searchParams.append('date', selectedDate);
 
-        // This is a simple GET request, it should work fine.
         fetch(url)
             .then(res => res.json())
             .then(res => {
@@ -60,6 +59,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error checking for existing data:', err);
                 responseMessage.textContent = `שגיאה בבדיקת נתונים: ${err.message}`;
                 responseMessage.style.color = 'red';
+            })
+            .finally(() => {
+                form.classList.remove('loading'); // NEW: Re-enable the form
             });
     };
     
@@ -81,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Fetch the list of players to populate the dropdown (on page load) ---
+    // --- Fetch the list of players to populate the dropdown ---
     fetch(SCRIPT_URL)
         .then(response => response.json())
         .then(data => {
@@ -100,11 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playerNameSelect.innerHTML = '<option value="">שגיאה בטעינת שחקנים</option>';
         });
 
-    // --- Handle the form submission (POST request) ---
+    // --- Handle the form submission ---
     form.addEventListener('submit', (e) => {
         e.preventDefault(); 
         
-        submitButton.disabled = true;
+        form.classList.add('loading');
         submitButton.textContent = 'שולח...';
         responseMessage.textContent = '';
         
@@ -117,15 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
             assists: parseInt(formData.get('assists'), 10)
         };
         
-        // ==========================================================
-        // ==  החזרתי את קוד ה-FETCH היציב והעובד שלך               ==
-        // == הוא כולל את ההגדרות החשובות שמונעות בעיות CORS      ==
-        // ==========================================================
         fetch(SCRIPT_URL, {
             method: 'POST',
-            mode: 'cors',
-            cache: 'no-cache',
-            redirect: 'follow',
             body: JSON.stringify(data)
         })
         .then(res => res.json())
@@ -140,8 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             responseMessage.style.color = 'red';
         })
         .finally(() => {
-            submitButton.disabled = false;
-            // The button text will be correct based on the last data fetch
+            form.classList.remove('loading');
         });
     });
 });
