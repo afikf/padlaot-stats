@@ -1,24 +1,33 @@
-// The link to your deployed Google Apps Script.
+// ===================================================================
+// == הדבק כאן את הקישור שקיבלת מהפריסה של GOOGLE APPS SCRIPT    ==
+// ===================================================================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkgPNh4U78Vcx-ePb7rLkMY6rQhTKwJtq985wGSL-2F-tKiiSlOTSEr3452O9cZ7eu/exec";
+// ===================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     // Form Elements
     const form = document.getElementById('stats-form');
     const dateInput = document.getElementById('game-date');
+    const dateError = document.getElementById('date-error');
     const playerNameSelect = document.getElementById('player-name');
     const gamesInput = document.getElementById('games');
     const goalsInput = document.getElementById('goals');
     const assistsInput = document.getElementById('assists');
     const submitButton = document.getElementById('submit-button');
-    const dateError = document.getElementById('date-error');
     const responseMessage = document.getElementById('response-message');
+
+    // --- NEW: Set max date to today to prevent future date selection ---
+    const today = new Date();
+    // Format to YYYY-MM-DD which is required for the 'max' attribute
+    const maxDate = today.toISOString().split('T')[0]; 
+    dateInput.setAttribute('max', maxDate);
+    // -----------------------------------------------------------------
 
     // --- Function to fetch existing data for a player and date ---
     const fetchExistingData = () => {
         const selectedDate = dateInput.value;
         const selectedPlayer = playerNameSelect.value;
 
-        // Only fetch if both a player and a valid date are selected
         if (!selectedPlayer || !selectedDate || dateError.style.display === 'block') {
             return;
         }
@@ -26,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
         responseMessage.textContent = 'בודק נתונים קיימים...';
         responseMessage.style.color = '#7f8c8d';
 
-        // Construct the URL with query parameters
         const url = new URL(SCRIPT_URL);
         url.searchParams.append('name', selectedPlayer);
         url.searchParams.append('date', selectedDate);
@@ -34,15 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(url)
             .then(res => res.json())
             .then(res => {
-                responseMessage.textContent = ''; // Clear status message
+                responseMessage.textContent = '';
                 if (res.status === 'found') {
-                    // Data exists, fill the form and change button text
                     gamesInput.value = res.data.games;
                     goalsInput.value = res.data.goals;
                     assistsInput.value = res.data.assists;
                     submitButton.textContent = 'עדכן נתונים';
                 } else if (res.status === 'not_found') {
-                    // No data exists, reset form to default and change button text
                     gamesInput.value = 1;
                     goalsInput.value = 0;
                     assistsInput.value = 0;
@@ -61,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Add Event Listeners ---
     dateInput.addEventListener('change', fetchExistingData);
     playerNameSelect.addEventListener('change', fetchExistingData);
-
 
     // --- Validation for Sundays only ---
     dateInput.addEventListener('input', () => {
@@ -115,7 +120,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         fetch(SCRIPT_URL, {
             method: 'POST',
-            // No Content-Type header to avoid CORS preflight issues with simple deployments
             body: JSON.stringify(data)
         })
         .then(res => res.json())
@@ -123,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.status === 'success') {
                 responseMessage.textContent = res.message;
                 responseMessage.style.color = 'green';
-                // Don't reset the form, so the user can see the data they submitted
             } else { throw new Error(res.message || 'An unknown error occurred.'); }
         })
         .catch(error => {
@@ -132,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .finally(() => {
             submitButton.disabled = false;
-            // The text will be correct based on the last fetch
         });
     });
 });

@@ -4,55 +4,51 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>הזנת נתונים - כדורגל פדלאות</title>
-    <link rel="stylesheet" href="style.css"> <!-- We use the same style file -->
-    <style>
-        /* Style for the error message */
-        .error-message {
-            color: #d9534f; /* Red color */
-            font-size: 0.85em;
-            margin-top: 5px;
-            display: none; /* Hidden by default */
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header>
-        <h1>✏️ הזנת נתוני משחק ✏️</h1>
-        <p>מלא את הטופס כדי לעדכן את הסטטיסטיקה שלך</p>
-    </header>
 
-    <main>
-        <form id="stats-form">
-            <div class="form-group">
-                <label for="game-date">תאריך המשחק:</label>
-                <input type="date" id="game-date" name="date" required>
-                <small id="date-error" class="error-message">יש לבחור יום ראשון בלבד.</small>
+    <div class="page-container">
+        <header class="main-header">
+            <div class="title-container">
+                <h1>✏️ הוספה ועריכת נתוני משחק ✏️</h1>
+                <p>בחר תאריך ושחקן כדי לעדכן נתונים או להזין חדשים</p>
             </div>
-            <div class="form-group">
-                <label for="player-name">שם השחקן:</label>
-                <select id="player-name" name="name" required>
-                    <option value="">טוען שחקנים...</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="games">כמות משחקים:</label>
-                <input type="number" id="games" name="games" min="0" value="1" required>
-            </div>
-            <div class="form-group">
-                <label for="goals">גולים:</label>
-                <input type="number" id="goals" name="goals" min="0" value="0" required>
-            </div>
-            <div class="form-group">
-                <label for="assists">בישולים:</label>
-                <input type="number" id="assists" name="assists" min="0" value="0" required>
-            </div>
-            <button type="submit" id="submit-button">שלח נתונים</button>
-        </form>
-        <div id="response-message"></div>
-    </main>
+        </header>
+    
+        <main class="form-container">
+            <form id="stats-form">
+                <div class="form-group">
+                    <label for="game-date">תאריך המשחק:</label>
+                    <input type="date" id="game-date" name="date" required>
+                    <small id="date-error" class="error-message">יש לבחור יום ראשון בלבד.</small>
+                </div>
+                <div class="form-group">
+                    <label for="player-name">שם השחקן:</label>
+                    <select id="player-name" name="name" required>
+                        <option value="">טוען שחקנים...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="games">כמות משחקים:</label>
+                    <input type="number" id="games" name="games" min="0" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="goals">גולים:</label>
+                    <input type="number" id="goals" name="goals" min="0" value="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="assists">בישולים:</label>
+                    <input type="number" id="assists" name="assists" min="0" value="0" required>
+                </div>
+                <button type="submit" id="submit-button">שלח נתונים</button>
+            </form>
+            <div id="response-message"></div>
+        </main>
+    </div>
 
     <footer>
-        <p><a href="index.html">חזור לטבלת הליגה</a></p>
+        <p><a href="index.html">חזרה לטבלת הסטטיסטיקה</a></p>
     </footer>
 
     <script src="form.js"></script>

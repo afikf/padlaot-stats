@@ -4,36 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>כדורגל פדלאות - סטטיסטיקה</title>
-    
-    <!-- Link to the external CSS file -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <header>
-        <h1>🏆 כדורגל פדלאות - סטטיסטיקה 🏆</h1>
-        <p id="last-updated">טוען נתונים עדכניים...</p>
-    </header>
+    <div class="page-container">
+        <header class="main-header">
+            <div class="top-nav">
+                <nav class="view-toggle">
+                    <button id="overall-view-btn" class="active">📊 תצוגה כללית</button>
+                    <button id="by-game-view-btn">📅 תצוגה לפי משחק</button>
+                </nav>
+                <a href="form.html" class="add-data-btn">➕ הוסף / ערוך נתונים</a>
+            </div>
+            
+            <div class="title-container">
+                <h1>🏆 כדורגל פדלאות - סטטיסטיקה 🏆</h1>
+                <p id="last-updated">טוען נתונים...</p>
+            </div>
+        </header>
 
-    <main>
-        <div id="loader" class="loader"></div>
-        <div class="table-container">
-            <table id="league-table" class="hidden">
-                <thead>
-                    <!-- Table headers will be inserted here by JavaScript -->
-                </thead>
-                <tbody>
-                    <!-- Player data will be inserted here by JavaScript -->
-                </tbody>
-            </table>
-        </div>
-    </main>
+        <main>
+            <div id="loader" class="loader"></div>
+            
+            <!-- Container for the overall statistics table -->
+            <div id="overall-view-container">
+                <!-- Overall table will be generated here by JS -->
+            </div>
+
+            <!-- Container for the by-game statistics tables -->
+            <div id="by-game-view-container" class="hidden">
+                <!-- By-game tables will be generated here by JS -->
+            </div>
+        </main>
+    </div>
 
     <footer>
         <p>פותח באהבה עבור שחקני הקהילה</p>
     </footer>
 
-    <!-- Link to the external JavaScript file -->
-    <script src="script.js"></script>
+    <script src="index.js"></script>
 </body>
 </html>
