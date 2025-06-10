@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
     // == ודא שזה הקישור לגיליון "הזנת נתונים - משחקים"            ==
     // ===================================================================
-    const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=0&single=true&output=csv';
+    const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=1634847815&single=true&output=csv';
 
     // DOM Elements
     const loader = document.getElementById('loader');
