@@ -1,8 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
-    // == ודא שזה הקישור לגיליון "הזנת נתונים - משחקים"            ==
+    // ==         שלב 1: הדבק כאן את שני הקישורים הנדרשים           ==
     // ===================================================================
+    // קישור לקובץ CSV של גיליון "הזנת נתונים - משחקים"
     const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=1634847815&single=true&output=csv';
+    
+    // קישור לקובץ CSV של גיליון "רשימת שחקנים"
+    const PLAYERS_LIST_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=0&single=true&output=csv';
+    // ===================================================================
 
     // DOM Elements
     const loader = document.getElementById('loader');
@@ -12,92 +17,144 @@ document.addEventListener('DOMContentLoaded', () => {
     const overallBtn = document.getElementById('overall-view-btn');
     const byGameBtn = document.getElementById('by-game-view-btn');
 
+    let allPlayersList = [];
     let allGamesData = [];
 
-    console.log("DEBUG: Script loaded. Starting fetch...");
+    // --- NEW: Fetch both datasets at the same time ---
+    Promise.all([
+        fetch(RAW_DATA_URL).then(res => res.text()),
+        fetch(PLAYERS_LIST_URL).then(res => res.text())
+    ])
+    .then(([csvRawData, csvPlayersList]) => {
+        loader.style.display = 'none';
 
-    fetch(RAW_DATA_URL)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`Network response failed. Status: ${response.status}`);
-            }
-            console.log("DEBUG: Fetch successful. Reading CSV text...");
-            return response.text();
-        })
-        .then(csvText => {
-            console.log("DEBUG: CSV text received. Length:", csvText.length);
+        // 1. Parse the master list of all players
+        // Assumes the CSV has one column of names, skipping a header row if it exists.
+        allPlayersList = csvPlayersList.trim().split('\n')
+            .map(row => row.trim())
+            .filter(name => name && name.toLowerCase() !== 'שם השחקן'); // Filter out header and empty rows
+
+        if (allPlayersList.length === 0) {
+            throw new Error("Could not parse player list. Please ensure 'רשימת שחקנים' is published correctly.");
+        }
+
+        // 2. Parse the raw game data
+        const rows = csvRawData.trim().split('\n').slice(1);
+        allGamesData = rows.map(row => {
+            const cells = row.split(',');
+            if (cells.length < 6) return null;
             
-            loader.style.display = 'none';
-            const rows = csvText.trim().split('\n').slice(1);
-            console.log(`DEBUG: Found ${rows.length} data rows after splitting CSV.`);
-
-            allGamesData = rows.map((row, index) => {
-                const cells = row.split(',');
-                
-                if (cells.length < 6) {
-                    console.warn(`DEBUG: Skipping malformed row ${index + 1}. Row content:`, row);
-                    return null;
-                }
-                
-                const [date, name, hasPlayed, games, goals, assists] = cells;
-                
-                if (!hasPlayed || hasPlayed.trim().toLowerCase() !== 'true') {
-                    return null;
-                }
-
-                // --- FIX FOR DATE FORMAT ---
-                // The CSV provides date as DD/MM/YYYY which is not reliable.
-                // We convert it to YYYY-MM-DD which is a safe, standard format.
-                const dateParts = date.trim().split('/');
-                if (dateParts.length !== 3) {
-                    console.warn(`DEBUG: Skipping row ${index + 1} due to invalid date format:`, date);
-                    return null;
-                }
-                const [day, month, year] = dateParts;
-                const isoDateString = `${year}-${month}-${day}`;
-                // --- END OF FIX ---
-
-                return {
-                    date: new Date(isoDateString).toISOString().split('T')[0],
-                    name: name.trim(),
-                    games: parseInt(games, 10) || 0,
-                    goals: parseInt(goals, 10) || 0,
-                    assists: parseInt(assists, 10) || 0
-                };
-            }).filter(Boolean); // Remove null entries
-
-            console.log(`DEBUG: Successfully parsed ${allGamesData.length} valid game entries.`);
-
-            if (allGamesData.length === 0) {
-                throw new Error("No valid data was found in the spreadsheet. Please check the 'hasPlayed' column is set to TRUE for some entries.");
+            const [date, name, hasPlayed] = cells;
+            if (!hasPlayed || hasPlayed.trim().toLowerCase() !== 'true') {
+                return null;
             }
+            
+            const dateParts = date.trim().split('/');
+            if (dateParts.length !== 3) return null;
+            const [day, month, year] = dateParts;
+            const isoDateString = `${year}-${month}-${day}`;
+            
+            return {
+                date: new Date(isoDateString).toISOString().split('T')[0],
+                name: name.trim(),
+                games: parseInt(cells[3], 10) || 0,
+                goals: parseInt(cells[4], 10) || 0,
+                assists: parseInt(cells[5], 10) || 0
+            };
+        }).filter(Boolean);
 
-            renderOverallView();
-            lastUpdated.textContent = `עודכן לאחרונה: ${new Date().toLocaleDateString('he-IL')}`;
-        })
-        .catch(error => {
-            console.error('FINAL ERROR:', error);
-            loader.style.display = 'none';
-            lastUpdated.textContent = `שגיאה בטעינת הנתונים: ${error.message}`;
-            lastUpdated.style.color = 'red';
-        });
+        // 3. Render the initial view
+        renderOverallView();
+        lastUpdated.textContent = `עודכן לאחרונה: ${new Date().toLocaleDateString('he-IL')}`;
+    })
+    .catch(error => {
+        console.error('FINAL ERROR:', error);
+        loader.style.display = 'none';
+        lastUpdated.textContent = `שגיאה בטעינת הנתונים: ${error.message}`;
+        lastUpdated.style.color = 'red';
+    });
 
-    // --- All other functions (calculate, group, render, sort) remain the same ---
-    
-    function calculateOverallStats(rawData) {
+    /**
+     * NEW: Calculates stats, ensuring all players from the master list are included.
+     */
+    function calculateOverallStats(playersList, rawData) {
         const stats = new Map();
-        rawData.forEach(game => {
-            if (!stats.has(game.name)) {
-                stats.set(game.name, { games: 0, goals: 0, assists: 0 });
-            }
-            const current = stats.get(game.name);
-            current.games += game.games;
-            current.goals += game.goals;
-            current.assists += game.assists;
+
+        // Initialize all players with 0 stats
+        playersList.forEach(player => {
+            stats.set(player, { name: player, games: 0, goals: 0, assists: 0 });
         });
-        return Array.from(stats, ([name, data]) => ({ name, ...data }));
+
+        // Add stats for players who played
+        rawData.forEach(game => {
+            if (stats.has(game.name)) {
+                const current = stats.get(game.name);
+                current.games += game.games;
+                current.goals += game.goals;
+                current.assists += game.assists;
+            }
+        });
+
+        return Array.from(stats.values());
     }
 
+    /** Renders the main overall stats table */
+    function renderOverallView() {
+        overallContainer.innerHTML = '';
+        const overallStats = calculateOverallStats(allPlayersList, allGamesData);
+        const headers = [
+            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
+            { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
+            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
+            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
+        ];
+        const table = createTable(overallStats, headers);
+        overallContainer.appendChild(table);
+    }
+    
+    /** NEW: Renders by-game view, showing all players for each game */
+    function renderByGameView() {
+        byGameContainer.innerHTML = '';
+        const groupedData = groupDataByDate(allGamesData);
+        const headers = [
+            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
+            { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
+            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
+            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
+        ];
+
+        const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
+
+        sortedDates.forEach(dateStr => {
+            const gameDataForDate = groupedData[dateStr];
+            
+            // Create a full list for this game date, including players who didn't play
+            const fullPlayerListForGame = allPlayersList.map(playerName => {
+                const playerData = gameDataForDate.find(p => p.name === playerName);
+                if (playerData) {
+                    return playerData; // Return existing data
+                } else {
+                    // Return a 0-stat object for players who didn't play
+                    return { name: playerName, games: 0, goals: 0, assists: 0, date: dateStr };
+                }
+            });
+
+            const title = document.createElement('h2');
+            title.className = 'game-title';
+            const dateObj = new Date(dateStr);
+            title.textContent = `משחק מתאריך ${dateObj.toLocaleDateString('he-IL')}`;
+            byGameContainer.appendChild(title);
+            
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'table-container';
+            const table = createTable(fullPlayerListForGame, headers);
+            tableContainer.appendChild(table);
+            byGameContainer.appendChild(tableContainer);
+        });
+    }
+
+    // --- Other functions (groupDataByDate, createTable, sortTable) remain the same ---
+    
     function groupDataByDate(rawData) {
         const grouped = {};
         rawData.forEach(game => {
@@ -114,7 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const thead = table.createTHead();
         const tbody = table.createTBody();
         const headerRow = thead.insertRow();
-
         headers.forEach((header, index) => {
             const th = document.createElement('th');
             th.innerHTML = `<span class="sort-arrow"></span>${header.label}`;
@@ -125,55 +181,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             headerRow.appendChild(th);
         });
-
         data.forEach(item => {
             const row = tbody.insertRow();
             headers.forEach(header => {
                 row.insertCell().textContent = item[header.key] || 0;
             });
         });
-        
         return table;
-    }
-
-    function renderOverallView() {
-        overallContainer.innerHTML = '';
-        const overallStats = calculateOverallStats(allGamesData);
-        const headers = [
-            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
-            { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
-            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
-            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
-        ];
-        const table = createTable(overallStats, headers);
-        overallContainer.appendChild(table);
-    }
-    
-    function renderByGameView() {
-        byGameContainer.innerHTML = '';
-        const groupedData = groupDataByDate(allGamesData);
-        const headers = [
-            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
-            { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
-            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
-            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
-        ];
-
-        const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
-
-        sortedDates.forEach(dateStr => {
-            const gameData = groupedData[dateStr];
-            const title = document.createElement('h2');
-            title.className = 'game-title';
-            const dateObj = new Date(dateStr);
-            title.textContent = `משחק מתאריך ${dateObj.toLocaleDateString('he-IL')}`;
-            byGameContainer.appendChild(title);
-            const tableContainer = document.createElement('div');
-            tableContainer.className = 'table-container';
-            const table = createTable(gameData, headers);
-            tableContainer.appendChild(table);
-            byGameContainer.appendChild(tableContainer);
-        });
     }
 
     function sortTable(table, colIndex, isNumeric) {
