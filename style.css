@@ -57,8 +57,8 @@ footer a {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-wrap: wrap; /* Allows wrapping on small screens */
-    gap: 15px; /* Adds space between items when they wrap */
+    flex-wrap: wrap; 
+    gap: 15px; 
     padding: 10px;
     background-color: var(--white-color);
     border-radius: 12px;
@@ -70,7 +70,8 @@ footer a {
     display: flex;
     background-color: #e9ecef;
     border-radius: 8px;
-    padding: 5px;
+    padding: 5px; /* Padding remains for the container */
+    flex-grow: 1; 
 }
 
 .view-toggle button {
@@ -84,6 +85,8 @@ footer a {
     cursor: pointer;
     border-radius: 6px;
     transition: all 0.2s ease;
+    flex-grow: 1;
+    text-align: center;
 }
 
 .view-toggle button.active {
@@ -103,6 +106,7 @@ footer a {
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0, 120, 212, 0.3);
     text-align: center;
+    flex-grow: 1;
 }
 
 .add-data-btn:hover {
@@ -370,6 +374,11 @@ button[type="submit"]:disabled {
     .view-toggle {
         justify-content: center;
         width: 100%;
+        padding: 0; /* Remove padding from the container */
+    }
+
+    .view-toggle button {
+        padding: 10px 16px; /* Give padding to the buttons themselves */
     }
 
     .add-data-btn {
@@ -378,7 +387,6 @@ button[type="submit"]:disabled {
     }
 
     th, td {
-        /* UPDATED: Reduced padding for mobile */
         padding: 12px 6px;
         font-size: 0.85em;
     }
