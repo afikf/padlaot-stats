@@ -1,6 +1,4 @@
-// ===================================================================
-// ==         הקישור שלך מהפריסה של GOOGLE APPS SCRIPT            ==
-// ===================================================================
+
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkgPNh4U78Vcx-ePb7rLkMY6rQhTKwJtq985wGSL-2F-tKiiSlOTSEr3452O9cZ7eu/exec";
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,9 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Set max date to today ---
     const today = new Date();
-    const maxDate = today.toISOString().split('T')[0]; 
+    const maxDate = today.toISOString().split('T')[0];
     dateInput.setAttribute('max', maxDate);
-    
+
     // --- Function to fetch existing data for a player and date ---
     const fetchExistingData = () => {
         const selectedDate = dateInput.value;
@@ -28,10 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!selectedPlayer || !selectedDate || dateError.style.display === 'block') {
             return;
         }
-        
-        responseMessage.textContent = 'בודק נתונים קיימים...';
-        responseMessage.style.color = '#7f8c8d';
-        form.classList.add('loading'); // NEW: Visually disable the form
+
+        responseMessage.textContent = ''; // Clear any previous messages
+        form.classList.add('loading'); // Visually disable the form and show overlay
 
         const url = new URL(SCRIPT_URL);
         url.searchParams.append('name', selectedPlayer);
@@ -40,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch(url)
             .then(res => res.json())
             .then(res => {
-                responseMessage.textContent = '';
                 if (res.status === 'found') {
                     gamesInput.value = res.data.games;
                     goalsInput.value = res.data.goals;
@@ -61,15 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 responseMessage.style.color = 'red';
             })
             .finally(() => {
-                form.classList.remove('loading'); // NEW: Re-enable the form
+                form.classList.remove('loading'); // Re-enable the form
             });
     };
-    
+
     // --- Add Event Listeners ---
-    dateInput.addEventListener('change', fetchExistingData);
+    // NEW: Use 'blur' event for date input to ensure the picker is closed.
+    dateInput.addEventListener('blur', fetchExistingData);
     playerNameSelect.addEventListener('change', fetchExistingData);
 
-    // --- Validation for Sundays only ---
+
+    // --- Validation for Sundays only (on 'input' for immediate feedback) ---
     dateInput.addEventListener('input', () => {
         const [year, month, day] = dateInput.value.split('-').map(Number);
         const selectedDate = new Date(Date.UTC(year, month - 1, day));
@@ -83,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Fetch the list of players to populate the dropdown ---
+    // --- Fetch the list of players to populate the dropdown (on page load) ---
     fetch(SCRIPT_URL)
         .then(response => response.json())
         .then(data => {
@@ -102,9 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
             playerNameSelect.innerHTML = '<option value="">שגיאה בטעינת שחקנים</option>';
         });
 
-    // --- Handle the form submission ---
+    // --- Handle the form submission (POST request) ---
     form.addEventListener('submit', (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
         
         form.classList.add('loading');
         submitButton.textContent = 'שולח...';
@@ -136,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .finally(() => {
             form.classList.remove('loading');
+            // Re-enable the submit button if needed, or leave as is if text changes
         });
     });
 });
