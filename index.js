@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
     // == ודא שזה הקישור לגיליון "הזנת נתונים - משחקים"            ==
     // ===================================================================
-    const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=1634847815&single=true&output=csv';
+    const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=0&single=true&output=csv';
 
     // DOM Elements
     const loader = document.getElementById('loader');
@@ -26,9 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(csvText => {
             console.log("DEBUG: CSV text received. Length:", csvText.length);
-            if (csvText.length < 50) {
-                console.warn("DEBUG: CSV data seems very short. Here it is:", csvText);
-            }
             
             loader.style.display = 'none';
             const rows = csvText.trim().split('\n').slice(1);
@@ -37,25 +34,31 @@ document.addEventListener('DOMContentLoaded', () => {
             allGamesData = rows.map((row, index) => {
                 const cells = row.split(',');
                 
-                // Debug log for each row
-                if(index < 5) { // Log first 5 rows to avoid spamming console
-                     console.log(`DEBUG: Parsing row ${index + 1}:`, cells);
-                }
-
                 if (cells.length < 6) {
-                    console.warn(`DEBUG: Skipping malformed row ${index + 1}. Expected 6 cells, got ${cells.length}. Row content:`, row);
+                    console.warn(`DEBUG: Skipping malformed row ${index + 1}. Row content:`, row);
                     return null;
                 }
                 
                 const [date, name, hasPlayed, games, goals, assists] = cells;
                 
                 if (!hasPlayed || hasPlayed.trim().toLowerCase() !== 'true') {
-                    // This is expected, so we don't log it as an error
                     return null;
                 }
 
+                // --- FIX FOR DATE FORMAT ---
+                // The CSV provides date as DD/MM/YYYY which is not reliable.
+                // We convert it to YYYY-MM-DD which is a safe, standard format.
+                const dateParts = date.trim().split('/');
+                if (dateParts.length !== 3) {
+                    console.warn(`DEBUG: Skipping row ${index + 1} due to invalid date format:`, date);
+                    return null;
+                }
+                const [day, month, year] = dateParts;
+                const isoDateString = `${year}-${month}-${day}`;
+                // --- END OF FIX ---
+
                 return {
-                    date: new Date(date.trim()).toISOString().split('T')[0],
+                    date: new Date(isoDateString).toISOString().split('T')[0],
                     name: name.trim(),
                     games: parseInt(games, 10) || 0,
                     goals: parseInt(goals, 10) || 0,
