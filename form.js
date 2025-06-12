@@ -1,140 +1,81 @@
+// Import the database instance from our config file, and the necessary Firestore functions
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "./firebase-config.js";
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxkgPNh4U78Vcx-ePb7rLkMY6rQhTKwJtq985wGSL-2F-tKiiSlOTSEr3452O9cZ7eu/exec";
+export { db };
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Form Elements
+    // --- Form Elements ---
     const form = document.getElementById('stats-form');
-    const dateInput = document.getElementById('game-date');
     const playerNameSelect = document.getElementById('player-name');
-    const gamesInput = document.getElementById('games');
-    const goalsInput = document.getElementById('goals');
-    const assistsInput = document.getElementById('assists');
-    const submitButton = document.getElementById('submit-button');
-    const dateError = document.getElementById('date-error');
-    const responseMessage = document.getElementById('response-message');
+    // ... (other elements will be defined when we re-implement the form logic)
 
-    // --- Set max date to today ---
-    const today = new Date();
-    const maxDate = today.toISOString().split('T')[0];
-    dateInput.setAttribute('max', maxDate);
+    /**
+     * Fetches the full player list from the 'players' collection in Firestore
+     * and populates the dropdown select menu.
+     */
+    async function populatePlayerDropdown() {
+        try {
+            console.log("DEBUG: Script loaded. Attempting to fetch players...");
+            
+            // Check if the db object was imported correctly
+            if (!db) {
+                throw new Error("Firestore database instance (db) is not available. Check firebase-config.js.");
+            }
+            console.log("DEBUG: Firestore db object is available.");
 
-    // --- Function to fetch existing data for a player and date ---
-    const fetchExistingData = () => {
-        const selectedDate = dateInput.value;
-        const selectedPlayer = playerNameSelect.value;
+            // Get all documents from the 'players' collection
+            const playersCollectionRef = collection(db, "players");
+            console.log("DEBUG: Created collection reference for 'players'.");
 
-        if (!selectedPlayer || !selectedDate || dateError.style.display === 'block') {
-            return;
-        }
-
-        responseMessage.textContent = ''; // Clear any previous messages
-        form.classList.add('loading'); // Visually disable the form and show overlay
-
-        const url = new URL(SCRIPT_URL);
-        url.searchParams.append('name', selectedPlayer);
-        url.searchParams.append('date', selectedDate);
-
-        fetch(url)
-            .then(res => res.json())
-            .then(res => {
-                if (res.status === 'found') {
-                    gamesInput.value = res.data.games;
-                    goalsInput.value = res.data.goals;
-                    assistsInput.value = res.data.assists;
-                    submitButton.textContent = 'עדכן נתונים';
-                } else if (res.status === 'not_found') {
-                    gamesInput.value = 1;
-                    goalsInput.value = 0;
-                    assistsInput.value = 0;
-                    submitButton.textContent = 'שלח נתונים';
+            const querySnapshot = await getDocs(playersCollectionRef);
+            console.log("DEBUG: getDocs snapshot received. Is empty:", querySnapshot.empty);
+            
+            const players = [];
+            querySnapshot.forEach((doc) => {
+                // For each document, we push an object with its unique ID and name
+                const playerData = doc.data();
+                if (playerData.name) {
+                    players.push({
+                        id: doc.id,
+                        name: playerData.name 
+                    });
                 } else {
-                    throw new Error(res.message || 'Error fetching player data.');
+                    console.warn("DEBUG: Document found without a 'name' field, skipping. ID:", doc.id);
                 }
-            })
-            .catch(err => {
-                console.error('Error checking for existing data:', err);
-                responseMessage.textContent = `שגיאה בבדיקת נתונים: ${err.message}`;
-                responseMessage.style.color = 'red';
-            })
-            .finally(() => {
-                form.classList.remove('loading'); // Re-enable the form
             });
-    };
 
-    // --- Add Event Listeners ---
-    // NEW: Use 'blur' event for date input to ensure the picker is closed.
-    dateInput.addEventListener('blur', fetchExistingData);
-    playerNameSelect.addEventListener('change', fetchExistingData);
+            if (players.length === 0) {
+                 console.warn("DEBUG: No players found in the 'players' collection or no documents have a 'name' field.");
+                 playerNameSelect.innerHTML = '<option value="">לא נמצאו שחקנים</option>';
+                 return; // Stop execution if no players are found
+            }
 
+            // Sort players alphabetically by name (in Hebrew)
+            players.sort((a, b) => a.name.localeCompare(b.name, 'he'));
 
-    // --- Validation for Sundays only (on 'input' for immediate feedback) ---
-    dateInput.addEventListener('input', () => {
-        const [year, month, day] = dateInput.value.split('-').map(Number);
-        const selectedDate = new Date(Date.UTC(year, month - 1, day));
-        
-        if (selectedDate.getUTCDay() !== 0) {
-            dateError.style.display = 'block';
-            submitButton.disabled = true;
-        } else {
-            dateError.style.display = 'none';
-            submitButton.disabled = false;
+            // Populate the dropdown
+            playerNameSelect.innerHTML = '<option value="">בחר את שמך...</option>';
+            players.forEach(player => {
+                const option = document.createElement('option');
+                // The value will now be the unique Player ID
+                option.value = player.id; 
+                option.textContent = player.name;
+                playerNameSelect.appendChild(option);
+            });
+            
+            console.log(`DEBUG: Successfully populated dropdown with ${players.length} players.`);
+
+        } catch (error) {
+            console.error("FINAL ERROR fetching players from Firestore:", error);
+            playerNameSelect.innerHTML = `<option value="">שגיאה בטעינת שחקנים</option>`;
         }
-    });
+    }
 
-    // --- Fetch the list of players to populate the dropdown (on page load) ---
-    fetch(SCRIPT_URL)
-        .then(response => response.json())
-        .then(data => {
-            if (data.players) {
-                playerNameSelect.innerHTML = '<option value="">בחר את שמך...</option>';
-                data.players.forEach(player => {
-                    const option = document.createElement('option');
-                    option.value = player;
-                    option.textContent = player;
-                    playerNameSelect.appendChild(option);
-                });
-            } else { throw new Error(data.error || 'Could not fetch players.'); }
-        })
-        .catch(error => {
-            console.error('Error fetching players:', error);
-            playerNameSelect.innerHTML = '<option value="">שגיאה בטעינת שחקנים</option>';
-        });
-
-    // --- Handle the form submission (POST request) ---
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        form.classList.add('loading');
-        submitButton.textContent = 'שולח...';
-        responseMessage.textContent = '';
-        
-        const formData = new FormData(form);
-        const data = {
-            date: formData.get('date'),
-            name: formData.get('name'),
-            games: parseInt(formData.get('games'), 10),
-            goals: parseInt(formData.get('goals'), 10),
-            assists: parseInt(formData.get('assists'), 10)
-        };
-        
-        fetch(SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(res => {
-            if (res.status === 'success') {
-                responseMessage.textContent = res.message;
-                responseMessage.style.color = 'green';
-            } else { throw new Error(res.message || 'An unknown error occurred.'); }
-        })
-        .catch(error => {
-            responseMessage.textContent = `שגיאה: ${error.message}`;
-            responseMessage.style.color = 'red';
-        })
-        .finally(() => {
-            form.classList.remove('loading');
-            // Re-enable the submit button if needed, or leave as is if text changes
-        });
-    });
+    // --- All old logic is temporarily disabled ---
+    // We will re-implement the form submission and editing logic in the next steps.
+    // For now, the old event listeners are commented out or removed.
+    
+    // Call the function to populate the players when the page loads
+    populatePlayerDropdown();
 });
