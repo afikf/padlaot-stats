@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול ערב משחק - כדורגל פדלאות</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="page-container">
+        <header class="main-header">
+            <div class="admin-header-nav">
+                <button id="admin-back-btn" class="admin-back-btn hidden" onclick="adminGoBack()">
+                    ← חזור
+                </button>
+                <div class="title-container">
+                    <h1>🔧 ניהול ערב משחק 🔧</h1>
+                    <p>ממשק מנהל למעקב אחר משחקים וסטטיסטיקות</p>
+                    <div id="demo-indicator" style="background: #f39c12; color: white; padding: 8px 16px; border-radius: 6px; margin-top: 10px; display: none;">
+                        🧪 מצב דמו - לא נשמר בבסיס נתונים
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Authentication Section -->
+        <div id="auth-section" class="admin-section">
+            <div class="auth-container">
+                <h2>כניסת מנהל</h2>
+                <p style="color: green; font-weight: bold;">הטופס נטען בהצלחה - הזן סיסמה</p>
+                <form id="auth-form">
+                    <div class="form-group">
+                        <label for="admin-password">סיסמת מנהל:</label>
+                        <input type="password" id="admin-password" required placeholder="הזן סיסמה...">
+                    </div>
+                    <button type="submit">כניסה</button>
+                </form>
+                <div id="auth-error" class="error-message"></div>
+                <p style="font-size: 0.9em; color: #666; margin-top: 15px;">
+                    💡 טיפ: הסיסמה היא "padlaot2024"
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Admin Interface (Hidden until authenticated) -->
+        <main id="admin-main" class="hidden">
+            <!-- Progress Indicator -->
+            <div class="progress-container">
+                <div class="progress-steps">
+                    <div class="step active" data-step="1">
+                        <span class="step-number">1</span>
+                        <span class="step-label">לוח בקרה</span>
+                    </div>
+                    <div class="step" data-step="2">
+                        <span class="step-number">2</span>
+                        <span class="step-label">בחירת שחקנים</span>
+                    </div>
+                    <div class="step" data-step="3">
+                        <span class="step-number">3</span>
+                        <span class="step-label">חלוקת קבוצות</span>
+                    </div>
+                    <div class="step" data-step="4">
+                        <span class="step-number">4</span>
+                        <span class="step-label">ניהול משחקים</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 1: Main Admin Dashboard -->
+            <div id="step-1" class="admin-step active">
+                <h2>לוח בקרה ראשי</h2>
+                
+                <!-- Live Games Section -->
+                <div id="live-games-section" class="live-games-section hidden">
+                    <h3>משחק חי הערב</h3>
+                    <div id="live-game-card" class="live-game-card">
+                        <!-- Live game info will be shown here -->
+                    </div>
+                    <button id="manage-live-game-btn" class="primary-btn">נהל משחקים בזמן אמת</button>
+                </div>
+                
+                <!-- Upcoming Games Section -->
+                <div id="upcoming-games-section" class="upcoming-games-section hidden">
+                    <h3>ערבי משחק קרובים</h3>
+                    <div id="upcoming-games-list" class="upcoming-games-list">
+                        <!-- Upcoming games will be shown here -->
+                    </div>
+                </div>
+                
+                <!-- Create New Game Day Section -->
+                <div id="create-section" class="create-section">
+                    <h3>יצירת ערב משחק חדש</h3>
+                    <div class="form-group">
+                        <label for="game-date">תאריך הערב:</label>
+                        <input type="date" id="game-date" required min="">
+                    </div>
+                    <div class="step-actions">
+                        <button id="create-gameday-btn" class="primary-btn">צור ערב משחק</button>
+                        <button id="view-history-btn" class="secondary-btn">צפה בערבי משחק קודמים</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Day History -->
+            <div id="history-view" class="admin-step hidden">
+                <h2>ערבי משחק קודמים</h2>
+                <div class="history-container">
+                    <div class="history-header">
+                        <button id="back-to-create-btn" class="secondary-btn">חזור ליצירת ערב חדש</button>
+                    </div>
+                    <div id="history-list" class="history-list">
+                        <!-- Game day history will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Player Selection -->
+            <div id="step-2" class="admin-step hidden">
+                <h2>בחירת 21 שחקנים</h2>
+                <div class="skip-to-teams-container">
+                    <button id="skip-to-teams-btn" class="secondary-btn">🏃‍♂️ דלג לחלוקת קבוצות (בחר שחקנים ישירות לקבוצות)</button>
+                </div>
+                <div class="player-selection-container">
+                    <div class="search-container">
+                        <input type="text" id="player-search" placeholder="חפש שחקן...">
+                        <span id="selected-count">נבחרו: 0/21</span>
+                    </div>
+                    <div id="players-grid" class="players-grid">
+                        <!-- Players will be loaded here -->
+                    </div>
+                </div>
+                <button id="confirm-players-btn" class="primary-btn" disabled>אשר בחירת שחקנים</button>
+            </div>
+
+            <!-- Step 3: Team Assignment -->
+            <div id="step-3" class="admin-step hidden">
+                <h2>חלוקת שחקנים לקבוצות</h2>
+                <div class="team-assignment-container">
+                    <button id="auto-assign-btn" class="secondary-btn">חלוקה אוטומטית</button>
+                    <div class="teams-container">
+                        <div class="team" data-team="A">
+                            <h3>קבוצה A</h3>
+                            <div class="team-players" id="team-A">
+                                <!-- Players will be assigned here -->
+                            </div>
+                            <span class="team-count">0/7</span>
+                        </div>
+                        <div class="team" data-team="B">
+                            <h3>קבוצה B</h3>
+                            <div class="team-players" id="team-B">
+                                <!-- Players will be assigned here -->
+                            </div>
+                            <span class="team-count">0/7</span>
+                        </div>
+                        <div class="team" data-team="C">
+                            <h3>קבוצה C</h3>
+                            <div class="team-players" id="team-C">
+                                <!-- Players will be assigned here -->
+                            </div>
+                            <span class="team-count">0/7</span>
+                        </div>
+                    </div>
+                </div>
+                <button id="confirm-teams-btn" class="primary-btn" disabled>שמור ערב משחק</button>
+            </div>
+
+            <!-- Step 4: Mini-Games Results -->
+            <div id="step-4" class="admin-step hidden">
+                <h2>תוצאות משחקים קטנים</h2>
+                <div class="mini-games-container">
+                    <div class="add-game-section">
+                        <button id="add-mini-game-btn" class="secondary-btn">הוסף משחק</button>
+                    </div>
+                    <div id="mini-games-list">
+                        <!-- Mini games will be added here -->
+                    </div>
+                </div>
+                
+                <!-- Player Stats Summary -->
+                <div class="stats-summary">
+                    <h3>סיכום סטטיסטיקות</h3>
+                    <div id="stats-summary-grid">
+                        <!-- Real-time stats will be shown here -->
+                    </div>
+                </div>
+                
+                <div class="live-game-controls">
+                    <button id="finalize-gameday-btn" class="end-game-night-btn">🏁 סיים ערב משחק 🏁</button>
+                    <p class="live-status-text">📡 מצב חי - המשחקים נשמרים אוטומטית</p>
+                </div>
+            </div>
+
+            <!-- Step 5: Completion -->
+            <div id="step-5" class="admin-step hidden">
+                <h2>ערב המשחק נשמר בהצלחה!</h2>
+                <div class="completion-summary">
+                    <p>הנתונים נשמרו בהצלחה במסד הנתונים</p>
+                    <div class="completion-actions">
+                        <button id="new-gameday-btn" class="primary-btn">צור ערב חדש</button>
+                        <a href="index.html" class="secondary-btn">חזור לעמוד הראשי</a>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loader"></div>
+            <p>שומר נתונים...</p>
+        </div>
+    </div>
+
+    <footer>
+        <p><a href="index.html">חזרה לעמוד הראשי</a></p>
+    </footer>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html> 

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Player Stats - Kadur-regel Padla'ot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        
+        .info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            color: #1565c0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .reset-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        
+        .reset-btn:hover {
+            background: #c0392b;
+        }
+        
+        .back-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: #2980b9;
+        }
+        
+        .loading {
+            display: none;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 איפוס סטטיסטיקות שחקנים</h1>
+        
+        <div class="info">
+            <strong>מה הפעולה הזו עושה:</strong><br>
+            מאפסת את כל הסטטיסטיקות של כל השחקנים במסד הנתונים<br>
+            (גולים, בישולים, ניצחונות → 0)
+        </div>
+        
+        <div class="warning">
+            ⚠️ אזהרה: פעולה זו לא ניתנת לביטול!<br>
+            כל הסטטיסטיקות יאפסו לצמיתות
+        </div>
+        
+        <div class="loading" id="loading">
+            🔄 מאפס סטטיסטיקות...
+        </div>
+        
+        <button class="reset-btn" onclick="runReset()" id="resetBtn">
+            איפוס כל הסטטיסטיקות
+        </button>
+        
+        <br>
+        
+        <button class="back-btn" onclick="window.location.href='index.html'">
+            חזרה לעמוד הראשי
+        </button>
+        
+        <button class="back-btn" onclick="window.location.href='admin.html'">
+            חזרה לעמוד הניהול
+        </button>
+    </div>
+
+    <script type="module">
+        import { collection, getDocs, doc, updateDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { db } from "./firebase-config.js";
+
+        async function resetAllPlayerStats() {
+            const loading = document.getElementById('loading');
+            const resetBtn = document.getElementById('resetBtn');
+            
+            try {
+                loading.style.display = 'block';
+                resetBtn.disabled = true;
+                resetBtn.textContent = 'מאפס...';
+                
+                console.log('🔄 Starting to reset all player stats...');
+                
+                // Get all players from the database
+                const playersSnapshot = await getDocs(collection(db, 'players'));
+                
+                if (playersSnapshot.empty) {
+                    alert('❌ לא נמצאו שחקנים במסד הנתונים');
+                    return;
+                }
+                
+                console.log(`📊 Found ${playersSnapshot.size} players to check`);
+                
+                // Use batch operations for efficiency
+                const batch = writeBatch(db);
+                let playersToUpdate = [];
+                
+                playersSnapshot.forEach((playerDoc) => {
+                    const playerData = playerDoc.data();
+                    const playerId = playerDoc.id;
+                    
+                    // Only update players that have stats to reset
+                    if (playerData.totalGoals > 0 || playerData.totalAssists > 0 || playerData.totalWins > 0) {
+                        playersToUpdate.push({
+                            id: playerId,
+                            name: playerData.name,
+                            currentStats: {
+                                goals: playerData.totalGoals || 0,
+                                assists: playerData.totalAssists || 0,
+                                wins: playerData.totalWins || 0
+                            }
+                        });
+                        
+                        const playerRef = doc(db, 'players', playerId);
+                        batch.update(playerRef, {
+                            totalGoals: 0,
+                            totalAssists: 0,
+                            totalWins: 0
+                        });
+                    }
+                });
+                
+                if (playersToUpdate.length === 0) {
+                    alert('✅ כל השחקנים כבר עם 0 סטטיסטיקות - אין צורך בעדכון');
+                    return;
+                }
+                
+                console.log(`🔄 Resetting stats for ${playersToUpdate.length} players:`);
+                playersToUpdate.forEach(player => {
+                    console.log(`   - ${player.name}: ${player.currentStats.goals} goals, ${player.currentStats.assists} assists, ${player.currentStats.wins} wins → 0, 0, 0`);
+                });
+                
+                // Ask for final confirmation
+                const confirmed = confirm(`האם אתה בטוח שברצונך לאפס סטטיסטיקות עבור ${playersToUpdate.length} שחקנים?\n\nפעולה זו תאפס את כל הגולים, הבישולים והניצחונות ל-0.\n\nפעולה זו לא ניתנת לביטול!`);
+                
+                if (!confirmed) {
+                    console.log('❌ Operation cancelled by user');
+                    return;
+                }
+                
+                // Execute the batch update
+                await batch.commit();
+                
+                console.log('✅ Successfully reset all player stats to 0!');
+                console.log(`📊 Updated ${playersToUpdate.length} players`);
+                
+                // Show success message
+                alert(`✅ איפוס הסטטיסטיקות הושלם בהצלחה!\n\n${playersToUpdate.length} שחקנים עודכנו\nכל הגולים, הבישולים והניצחונות אופסו ל-0`);
+                
+            } catch (error) {
+                console.error('❌ Error resetting player stats:', error);
+                alert('שגיאה באיפוס הסטטיסטיקות: ' + error.message);
+            } finally {
+                loading.style.display = 'none';
+                resetBtn.disabled = false;
+                resetBtn.textContent = 'איפוס כל הסטטיסטיקות';
+            }
+        }
+
+        // Make the function globally available
+        window.runReset = resetAllPlayerStats;
+    </script>
+</body>
+</html> 

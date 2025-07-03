@@ -1,14 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // ===================================================================
-    // ==               הקישורים שלך נשמרו כפי שהם                  ==
-    // ===================================================================
-    // קישור לקובץ CSV של גיליון "הזנת נתונים - משחקים"
-    const RAW_DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=1634847815&single=true&output=csv';
-    
-    // קישור לקובץ CSV של גיליון "רשימת שחקנים"
-    const PLAYERS_LIST_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQjSHec_HTnsbDypeWhzQZalUoOGvuPFsUhzung3nnM8cj9vIfeCgWf4KakONdwXC36XOQQ8ZuAwPlN/pub?gid=0&single=true&output=csv';
-    // ===================================================================
+// Import Firebase functions
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "./firebase-config.js";
 
+document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const loader = document.getElementById('loader');
     const lastUpdated = document.getElementById('last-updated');
@@ -17,169 +11,308 @@ document.addEventListener('DOMContentLoaded', () => {
     const overallBtn = document.getElementById('overall-view-btn');
     const byGameBtn = document.getElementById('by-game-view-btn');
 
-    let allPlayersList = [];
-    let allGamesData = [];
+    let allPlayers = [];
+    let allGameDays = [];
     let byGameViewRendered = false; // Flag to render by-game view only once
 
-    // --- Fetch both datasets at the same time ---
-    Promise.all([
-        fetch(RAW_DATA_URL).then(res => {
-            if (!res.ok) throw new Error(`Failed to fetch RAW_DATA_URL: ${res.statusText}`);
-            return res.text();
-        }),
-        fetch(PLAYERS_LIST_URL).then(res => {
-            if (!res.ok) throw new Error(`Failed to fetch PLAYERS_LIST_URL: ${res.statusText}`);
-            return res.text();
-        })
-    ])
-    .then(([csvRawData, csvPlayersList]) => {
-        loader.style.display = 'none';
+    // Cache keys
+    const CACHE_KEYS = {
+        PLAYERS: 'padlaot_players_cache',
+        GAME_DAYS: 'padlaot_gamedays_cache',
+        LAST_FETCH: 'padlaot_last_fetch'
+    };
 
-        // 1. Parse the master list of all players
-        allPlayersList = csvPlayersList.trim().split('\n')
-            .map(row => row.trim())
-            .filter(name => name && name.toLowerCase() !== 'שם השחקן');
+    // Cache duration (1 hour in milliseconds)
+    const CACHE_DURATION = 60 * 60 * 1000;
 
-        if (allPlayersList.length === 0) {
-            throw new Error("Could not parse player list. Please ensure 'רשימת שחקנים' is published correctly and contains names.");
-        }
+    // Load data from Firebase with caching
+    loadDataFromFirebase();
 
-        // 2. Parse the raw game data
-        const rows = csvRawData.trim().split('\n').slice(1);
-        allGamesData = rows.map(row => {
-            const cells = row.split(',');
-            if (cells.length < 6) return null;
+    async function loadDataFromFirebase() {
+        try {
+            console.log('Loading data from Firebase...');
             
-            const [date, name, hasPlayed] = cells;
-            if (!hasPlayed || hasPlayed.trim().toLowerCase() !== 'true') {
+            // Check if we have cached data that's still valid
+            const cachedData = getCachedData();
+            if (cachedData) {
+                console.log('Using cached data');
+                allPlayers = cachedData.players;
+                allGameDays = cachedData.gameDays;
+                loader.style.display = 'none';
+                renderOverallView();
+                lastUpdated.textContent = `עודכן לאחרונה: ${new Date(cachedData.lastFetch).toLocaleDateString('he-IL')} (מטמון)`;
+                return;
+            }
+
+            // Load players and game days with timeout
+            const [playersSnapshot, gameDaysSnapshot] = await Promise.all([
+                Promise.race([
+                    getDocs(collection(db, 'players')),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Players loading timeout')), 10000)
+                    )
+                ]),
+                Promise.race([
+                    getDocs(collection(db, 'gameDays')),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Game days loading timeout')), 10000)
+                    )
+                ])
+            ]);
+
+            loader.style.display = 'none';
+
+            // Process players data
+            allPlayers = [];
+            playersSnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.name) {
+                    allPlayers.push({
+                        id: doc.id,
+                        name: data.name,
+                        goals: data.totalGoals || 0,
+                        assists: data.totalAssists || 0,
+                        wins: data.totalWins || 0,
+                        games: 0 // Will be calculated from game days
+                    });
+                }
+            });
+
+            // Process game days data to calculate games played
+            allGameDays = [];
+            gameDaysSnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.status === 'completed' && data.participants) {
+                    allGameDays.push({
+                        id: doc.id,
+                        date: data.date,
+                        participants: data.participants,
+                        miniGames: data.miniGames || [],
+                        playerStats: data.playerStats || {}
+                    });
+                }
+            });
+
+            // Cache the data
+            cacheData(allPlayers, allGameDays);
+
+            // Calculate games played for each player
+            calculateGamesPlayed();
+
+            // Show all players, even those with zero stats
+            if (allPlayers.length === 0) {
+                overallContainer.innerHTML = '<p style="text-align:center; margin-top:20px;">לא נמצאו שחקנים במסד הנתונים.</p>';
+                lastUpdated.textContent = 'לא נמצאו שחקנים';
+                return;
+            }
+
+            // Render the initial view
+            renderOverallView();
+            lastUpdated.textContent = `עודכן לאחרונה: ${new Date().toLocaleDateString('he-IL')}`;
+
+        } catch (error) {
+            console.error('Error loading data from Firebase:', error);
+            loader.style.display = 'none';
+            
+            // Try to use cached data as fallback
+            const cachedData = getCachedData(true); // Force use even if expired
+            if (cachedData) {
+                console.log('Using expired cached data as fallback');
+                allPlayers = cachedData.players;
+                allGameDays = cachedData.gameDays;
+                calculateGamesPlayed();
+                renderOverallView();
+                lastUpdated.textContent = `נתונים מהמטמון (${new Date(cachedData.lastFetch).toLocaleDateString('he-IL')}) - שגיאה בטעינה`;
+                lastUpdated.style.color = 'orange';
+                return;
+            }
+            
+            if (error.message.includes('timeout')) {
+                lastUpdated.textContent = 'בעיית חיבור - לא ניתן לטעון את הנתונים';
+            } else if (error.message.includes('quota')) {
+                lastUpdated.textContent = 'הגעת למגבלת השימוש היומית - נסה שוב מחר או שדרג לתוכנית בתשלום';
+            } else {
+                lastUpdated.textContent = `שגיאה בטעינת הנתונים: ${error.message}`;
+            }
+            lastUpdated.style.color = 'red';
+            
+            // Show empty state
+            overallContainer.innerHTML = '<p style="text-align:center; margin-top:20px;">שגיאה בטעינת הנתונים. אנא נסה שוב מאוחר יותר.</p>';
+        }
+    }
+
+    function getCachedData(forceUse = false) {
+        try {
+            const playersCache = localStorage.getItem(CACHE_KEYS.PLAYERS);
+            const gameDaysCache = localStorage.getItem(CACHE_KEYS.GAME_DAYS);
+            const lastFetch = localStorage.getItem(CACHE_KEYS.LAST_FETCH);
+
+            if (!playersCache || !gameDaysCache || !lastFetch) {
                 return null;
             }
-            
-            const dateParts = date.trim().split('/');
-            if (dateParts.length !== 3) return null;
-            const [day, month, year] = dateParts;
-            const isoDateString = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-            
-            return {
-                date: isoDateString,
-                name: name.trim(),
-                games: parseInt(cells[3], 10) || 0,
-                goals: parseInt(cells[4], 10) || 0,
-                assists: parseInt(cells[5], 10) || 0
-            };
-        }).filter(Boolean);
 
-        // 3. Render the initial view
-        renderOverallView();
-        lastUpdated.textContent = `עודכן לאחרונה: ${new Date().toLocaleDateString('he-IL')}`;
-    })
-    .catch(error => {
-        console.error('FINAL ERROR:', error);
-        loader.style.display = 'none';
-        lastUpdated.textContent = `שגיאה בטעינת הנתונים: ${error.message}`;
-        lastUpdated.style.color = 'red';
-    });
+            const lastFetchTime = parseInt(lastFetch);
+            const now = Date.now();
 
-    /**
-     * Calculates stats, ensuring all players from the master list are included.
-     */
-    function calculateOverallStats(playersList, rawData) {
-        const stats = new Map();
-        playersList.forEach(player => {
-            stats.set(player, { name: player, games: 0, goals: 0, assists: 0 });
-        });
-        rawData.forEach(game => {
-            if (stats.has(game.name)) {
-                const current = stats.get(game.name);
-                current.games += game.games;
-                current.goals += game.goals;
-                current.assists += game.assists;
+            // Check if cache is still valid (or force use)
+            if (!forceUse && (now - lastFetchTime) > CACHE_DURATION) {
+                return null;
             }
+
+            return {
+                players: JSON.parse(playersCache),
+                gameDays: JSON.parse(gameDaysCache),
+                lastFetch: lastFetchTime
+            };
+        } catch (error) {
+            console.error('Error reading cache:', error);
+            return null;
+        }
+    }
+
+    function cacheData(players, gameDays) {
+        try {
+            localStorage.setItem(CACHE_KEYS.PLAYERS, JSON.stringify(players));
+            localStorage.setItem(CACHE_KEYS.GAME_DAYS, JSON.stringify(gameDays));
+            localStorage.setItem(CACHE_KEYS.LAST_FETCH, Date.now().toString());
+        } catch (error) {
+            console.error('Error caching data:', error);
+        }
+    }
+
+    // Add refresh button functionality
+    function addRefreshButton() {
+        const refreshBtn = document.createElement('button');
+        refreshBtn.textContent = '🔄 רענן נתונים';
+        refreshBtn.className = 'refresh-btn';
+        refreshBtn.onclick = () => {
+            // Clear cache and reload
+            localStorage.removeItem(CACHE_KEYS.PLAYERS);
+            localStorage.removeItem(CACHE_KEYS.GAME_DAYS);
+            localStorage.removeItem(CACHE_KEYS.LAST_FETCH);
+            location.reload();
+        };
+        
+        const header = document.querySelector('.header');
+        if (header) {
+            header.appendChild(refreshBtn);
+        }
+    }
+
+    // Add refresh button after DOM is loaded
+    setTimeout(addRefreshButton, 1000);
+
+    function calculateGamesPlayed() {
+        // Create a map to count games per player
+        const gamesCount = new Map();
+        
+        allGameDays.forEach(gameDay => {
+            gameDay.participants.forEach(playerId => {
+                gamesCount.set(playerId, (gamesCount.get(playerId) || 0) + 1);
+            });
         });
-        return Array.from(stats.values());
+
+        // Update games count for each player
+        allPlayers.forEach(player => {
+            player.games = gamesCount.get(player.id) || 0;
+        });
     }
 
     /** Renders the main overall stats table */
     function renderOverallView() {
         overallContainer.innerHTML = '';
-        const overallStats = calculateOverallStats(allPlayersList, allGamesData);
 
-        // --- NEW: Default sort by goals (descending) ---
-        overallStats.sort((a, b) => b.goals - a.goals);
-        // ---------------------------------------------
+        // Sort by goals (descending) by default
+        const sortedPlayers = [...allPlayers].sort((a, b) => b.goals - a.goals);
 
         const headers = [
             { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
             { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
             { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
-            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
+            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true },
+            { label: 'ניצחונות', key: 'wins', sortable: true, isNumeric: true }
         ];
-        const table = createTable(overallStats, headers);
+        
+        const table = createTable(sortedPlayers, headers);
         overallContainer.appendChild(table);
 
-        // --- NEW: Set initial sort indicator on 'goals' column ---
+        // Set initial sort indicator on 'goals' column
         setInitialSortIndicator(table, 'goals');
-        // ---------------------------------------------------------
     }
     
-    /** Renders by-game view, showing all players for each game */
+    /** Renders by-game view, showing players for each game day */
     function renderByGameView() {
         byGameContainer.innerHTML = '';
-        const groupedData = groupDataByDate(allGamesData);
-        const headers = [
-            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
-            { label: 'משחקים', key: 'games', sortable: true, isNumeric: true },
-            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
-            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true }
-        ];
 
-        const sortedDates = Object.keys(groupedData).sort((a, b) => new Date(b) - new Date(a));
-
-        if (sortedDates.length === 0) {
+        if (allGameDays.length === 0) {
             byGameContainer.innerHTML = '<p style="text-align:center; margin-top:20px;">לא נמצאו נתוני משחקים להצגה.</p>';
             return;
         }
 
-        sortedDates.forEach(dateStr => {
-            const gameDataForDate = groupedData[dateStr];
-            
-            let fullPlayerListForGame = allPlayersList.map(playerName => {
-                const playerData = gameDataForDate.find(p => p.name === playerName);
-                return playerData || { name: playerName, games: 0, goals: 0, assists: 0, date: dateStr };
-            });
+        const headers = [
+            { label: 'שם השחקן', key: 'name', sortable: true, isNumeric: false },
+            { label: 'גולים', key: 'goals', sortable: true, isNumeric: true },
+            { label: 'בישולים', key: 'assists', sortable: true, isNumeric: true },
+            { label: 'ניצחונות', key: 'wins', sortable: true, isNumeric: true }
+        ];
 
-            // --- NEW: Default sort by goals (descending) for each game table ---
-            fullPlayerListForGame.sort((a, b) => b.goals - a.goals);
-            // -------------------------------------------------------------------
+        // Sort game days by date (newest first)
+        const sortedGameDays = [...allGameDays].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        sortedGameDays.forEach(gameDay => {
+            // Get players who participated in this game day
+            const participatingPlayers = allPlayers.filter(player => 
+                gameDay.participants.includes(player.id)
+            );
+
+            // Calculate stats for this specific game day
+            const gameStats = calculateGameDayStats(gameDay, participatingPlayers);
+
+            // Sort by goals for this game
+            gameStats.sort((a, b) => b.goals - a.goals);
 
             const title = document.createElement('h2');
             title.className = 'game-title';
-            const dateObj = new Date(dateStr);
+            const dateObj = new Date(gameDay.date);
             title.textContent = `משחק מתאריך ${dateObj.toLocaleDateString('he-IL')}`;
             byGameContainer.appendChild(title);
             
             const tableContainer = document.createElement('div');
             tableContainer.className = 'table-container';
-            const table = createTable(fullPlayerListForGame, headers);
+            const table = createTable(gameStats, headers);
             tableContainer.appendChild(table);
             byGameContainer.appendChild(tableContainer);
 
-            // --- NEW: Set initial sort indicator on 'goals' column for this table ---
+            // Set initial sort indicator on 'goals' column for this table
             setInitialSortIndicator(table, 'goals');
-            // ----------------------------------------------------------------------
         });
     }
 
-    // --- Other functions (groupDataByDate, createTable, sortTable) remain the same ---
-    function groupDataByDate(rawData) {
-        const grouped = {};
-        rawData.forEach(game => {
-            if (!grouped[game.date]) {
-                grouped[game.date] = [];
-            }
-            grouped[game.date].push(game);
-        });
-        return grouped;
+    function calculateGameDayStats(gameDay, participatingPlayers) {
+        // Initialize stats for all participants
+        const stats = participatingPlayers.map(player => ({
+            name: player.name,
+            goals: 0,
+            assists: 0,
+            wins: 0
+        }));
+
+        // Get stats directly from the game day's playerStats (not from individual mini-games)
+        if (gameDay.playerStats) {
+            Object.entries(gameDay.playerStats).forEach(([playerId, playerStats]) => {
+                const player = participatingPlayers.find(p => p.id === playerId);
+                if (player) {
+                    const statEntry = stats.find(s => s.name === player.name);
+                    if (statEntry) {
+                        statEntry.goals = playerStats.goals || 0;
+                        statEntry.assists = playerStats.assists || 0;
+                        statEntry.wins = playerStats.wins || 0;
+                    }
+                }
+            });
+        }
+
+        return stats;
     }
 
     function createTable(data, headers) {
@@ -187,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const thead = table.createTHead();
         const tbody = table.createTBody();
         const headerRow = thead.insertRow();
+        
         headers.forEach((header, index) => {
             const th = document.createElement('th');
             th.innerHTML = `<span class="sort-arrow"></span>${header.label}`;
@@ -197,23 +331,25 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             headerRow.appendChild(th);
         });
+        
         data.forEach(item => {
             const row = tbody.insertRow();
             headers.forEach(header => {
-                row.insertCell().textContent = item[header.key] !== undefined ? item[header.key] : 0;
+                const cell = row.insertCell();
+                const value = item[header.key];
+                cell.textContent = value !== undefined ? value : 0;
             });
         });
+        
         return table;
     }
     
-    // --- NEW: Helper function to set the visual indicator for default sort ---
     function setInitialSortIndicator(table, key) {
         const headerCell = table.querySelector(`th[data-key="${key}"]`);
         if (headerCell) {
             headerCell.classList.add('sort-desc');
         }
     }
-    // -------------------------------------------------------------------------
 
     function sortTable(table, colIndex, isNumeric) {
         const tbody = table.tBodies[0];
@@ -221,23 +357,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const header = table.tHead.rows[0].cells[colIndex];
         const currentOrder = header.classList.contains('sort-asc') ? 'asc' : 'desc';
         const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+        
+        // Clear all sort indicators
         table.querySelectorAll('th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
         header.classList.add(newOrder === 'asc' ? 'sort-asc' : 'sort-desc');
+        
         rows.sort((a, b) => {
             let valA = a.cells[colIndex].textContent.trim();
             let valB = b.cells[colIndex].textContent.trim();
+            
             if (isNumeric) {
                 valA = parseFloat(valA);
                 valB = parseFloat(valB);
             }
+            
             if (valA < valB) return newOrder === 'asc' ? -1 : 1;
             if (valA > valB) return newOrder === 'asc' ? 1 : -1;
             return 0;
         });
+        
         rows.forEach(row => tbody.appendChild(row));
     }
 
-    // --- View Toggle Event Listeners ---
+    // View Toggle Event Listeners
     overallBtn.addEventListener('click', () => {
         overallBtn.classList.add('active');
         byGameBtn.classList.remove('active');
@@ -250,6 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
         overallBtn.classList.remove('active');
         byGameContainer.classList.remove('hidden');
         overallContainer.classList.add('hidden');
+        
         if (!byGameViewRendered) {
             renderByGameView();
             byGameViewRendered = true; 
