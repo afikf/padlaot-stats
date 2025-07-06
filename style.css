@@ -2781,6 +2781,19 @@ body:has(.admin-section) .auth-container {
 
 /* Admin management tab visibility is now controlled by JavaScript based on user role */
 
+/* Ensure admin management tab is properly contained */
+#admin-management-tab {
+    position: relative;
+    z-index: 1;
+}
+
+#admin-management-tab.hidden {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
 .history-item-details {
     display: flex;
     gap: 30px;

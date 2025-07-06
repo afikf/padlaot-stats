@@ -754,12 +754,17 @@ function setupRoleBasedTabVisibility() {
 }
 
 function switchToTab(tabName) {
+    console.log('Switching to tab:', tabName);
+    
     // Update active tab
     const allTabs = document.querySelectorAll('.admin-tab');
     const allPanels = document.querySelectorAll('.tab-panel');
     
     allTabs.forEach(tab => tab.classList.remove('active'));
-    allPanels.forEach(panel => panel.classList.remove('active'));
+    allPanels.forEach(panel => {
+        panel.classList.remove('active');
+        panel.classList.add('hidden');
+    });
     
     // Activate selected tab and panel
     const selectedTab = document.querySelector(`[data-tab="${tabName}"]`);
@@ -769,6 +774,17 @@ function switchToTab(tabName) {
     if (selectedPanel) {
         selectedPanel.classList.remove('hidden');
         selectedPanel.classList.add('active');
+        console.log('Activated panel:', selectedPanel.id);
+    }
+    
+    // Make sure admin management is properly hidden when switching away from it
+    if (tabName !== 'admin-management') {
+        const adminManagementPanel = document.getElementById('admin-management-tab');
+        if (adminManagementPanel) {
+            adminManagementPanel.classList.add('hidden');
+            adminManagementPanel.classList.remove('active');
+            console.log('Explicitly hiding admin management panel');
+        }
     }
     
     // Handle special tab logic
@@ -1246,8 +1262,18 @@ async function signInWithGoogle() {
     }
     
     try {
+        // Clear any existing auth state to prevent session storage issues
+        try {
+            await signOut(auth);
+        } catch (signOutError) {
+            console.log('No existing session to clear');
+        }
+        
+        // Configure popup for better compatibility with GitHub Pages
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
+        
+        console.log('Sign-in successful:', user.email);
         
         const isAuthorized = await isAuthorizedAdmin(user.email);
         if (isAuthorized) {
@@ -1260,7 +1286,19 @@ async function signInWithGoogle() {
         }
     } catch (error) {
         console.error("Google sign-in failed:", error);
-        showErrorToast('שגיאת התחברות', 'לא ניתן להתחבר עם Google');
+        
+        // Handle specific Firebase auth errors
+        if (error.code === 'auth/popup-closed-by-user') {
+            showErrorToast('התחברות בוטלה', 'חלון ההתחברות נסגר');
+        } else if (error.code === 'auth/popup-blocked') {
+            showErrorToast('חלון נחסם', 'אנא אפשר חלונות קופצים עבור האתר');
+        } else if (error.code === 'auth/cancelled-popup-request') {
+            showErrorToast('התחברות בוטלה', 'בקשת התחברות בוטלה');
+        } else if (error.message && error.message.includes('sessionStorage')) {
+            showErrorToast('שגיאת אחסון', 'אנא נסה לרענן את הדף או להשתמש בדפדפן אחר');
+        } else {
+            showErrorToast('שגיאת התחברות', 'לא ניתן להתחבר עם Google. אנא נסה שנית.');
+        }
     }
 }
 

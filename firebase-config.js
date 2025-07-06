@@ -23,6 +23,15 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Configure Google provider for better compatibility with GitHub Pages
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+// Add additional scopes if needed
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+
 // Enable Firestore offline persistence for better performance and caching
 // This allows the app to work offline and reduces database reads by caching data locally
 enableIndexedDbPersistence(db)
