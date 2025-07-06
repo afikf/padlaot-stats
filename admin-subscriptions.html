@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול מנויים - כדור-רגל פדלאות</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="page-container">
+        <!-- Community Logo -->
+        <div class="community-logo" onclick="window.location.href='index.html'" title="חזרה לעמוד הראשי">
+            <img src="logo.jpeg" alt="כדורגל פדלאות" />
+        </div>
+        
+        <header class="main-header">
+            <div class="admin-header-nav">
+                <a href="admin.html" class="admin-back-btn">
+                    ← חזרה לדף ניהול
+                </a>
+                <h1>ניהול מנויים</h1>
+            </div>
+        </header>
+
+        <main class="admin-section">
+            <!-- Loading indicator -->
+            <div id="loader" class="loader">
+                <div class="spinner"></div>
+                <p>טוען נתונים...</p>
+            </div>
+
+            <!-- Main content -->
+            <div id="main-content" class="subscription-container" style="display: none;">
+                <!-- Days overview - main view -->
+                <div id="days-overview" class="days-overview">
+                    <h2>ניהול מנויים לפי ימים</h2>
+                    <div id="days-grid" class="days-grid">
+                        <!-- Days will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Player management section - hidden by default -->
+                <div id="player-management" class="player-management-section" style="display: none;">
+                    <div class="management-header">
+                        <h3 id="current-day-title">עריכת מנוי ליום</h3>
+                        <button id="back-to-overview-btn" class="back-btn">← חזרה לסקירה</button>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="subscription-controls">
+                        <div class="player-search-container">
+                            <input type="text" id="player-search" placeholder="חפש שחקן..." class="player-search-input">
+                            <span id="selected-count">נבחרו: 0/21</span>
+                        </div>
+                    </div>
+
+                    <!-- Copy from another day -->
+                    <div class="copy-subscription-container">
+                        <label for="copy-from-day">העתק מיום אחר:</label>
+                        <select id="copy-from-day" class="copy-selector">
+                            <option value="">-- בחר יום להעתקה --</option>
+                        </select>
+                        <button id="copy-subscription-btn" class="copy-btn" disabled>העתק</button>
+                    </div>
+
+                    <!-- Players grid -->
+                    <div id="players-grid" class="players-grid">
+                        <!-- Players will be loaded here -->
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="subscription-actions">
+                        <button id="save-subscription-btn" class="primary-btn" disabled>שמור מנוי</button>
+                        <button id="delete-subscription-btn" class="delete-btn" style="display: none;">מחק מנוי</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status messages -->
+            <div id="status-message" class="status-message" style="display: none;"></div>
+        </main>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">אישור שינויים</h3>
+            </div>
+            <div class="modal-body">
+                <div id="modal-message"></div>
+                <div id="changes-summary" class="changes-summary"></div>
+            </div>
+            <div class="modal-actions">
+                <button id="modal-cancel-btn" class="modal-btn cancel-btn">ביטול</button>
+                <button id="modal-confirm-btn" class="modal-btn confirm-btn">אישור</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase and app scripts -->
+    <script type="module" src="admin-subscriptions.js"></script>
+</body>
+</html> 

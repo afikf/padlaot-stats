@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -19,5 +20,23 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
-export { app, db };
+// Enable Firestore offline persistence for better performance and caching
+// This allows the app to work offline and reduces database reads by caching data locally
+enableIndexedDbPersistence(db)
+  .then(() => {
+    console.log('✅ Firestore offline persistence enabled successfully');
+  })
+  .catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('⚠️ Firestore persistence failed: Multiple tabs open, persistence can only be enabled in one tab at a time');
+    } else if (err.code === 'unimplemented') {
+      console.warn('⚠️ Firestore persistence not supported in this browser');
+    } else {
+      console.error('❌ Error enabling Firestore persistence:', err);
+    }
+  });
+
+export { app, db, auth, googleProvider };

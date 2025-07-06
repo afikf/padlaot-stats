@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>יצירת נתונים דמה</title>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.3/build/global/luxon.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+        .success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        .warning {
+            background-color: #fff3e0;
+            color: #ef6c00;
+            border: 1px solid #ffcc02;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #log {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 יצירת נתונים דמה לכדורגל פדלאות</h1>
+        
+        <div class="status info">
+            <strong>מה הסקריפט הזה עושה:</strong><br>
+            • יוצר 10 ערבי משחק (2 בכל חודש מפברואר עד יוני 2024)<br>
+            • בוחר 21 שחקנים אקראיים לכל ערב<br>
+            • מחלק אותם ל-3 קבוצות (A, B, C)<br>
+            • יוצר 5-8 משחקים קטנים עם תוצאות אקראיות<br>
+            • מחשב סטטיסטיקות מדויקות לכל שחקן<br>
+            • מעדכן את הסטטיסטיקות הכלליות של השחקנים
+        </div>
+
+        <div class="status warning">
+            <strong>⚠️ אזהרה:</strong> פעולה זו תוסיף נתונים למסד הנתונים ותעדכן סטטיסטיקות קיימות. ודא שאתה רוצה לעשות זאת.
+        </div>
+
+        <button id="createMockData" onclick="runMockDataCreation()">
+            🚀 יצירת נתונים דמה
+        </button>
+
+        <div id="log"></div>
+    </div>
+
+    <script type="module">
+        import { collection, getDocs, doc, setDoc, writeBatch, increment, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { db } from "./firebase-config.js";
+
+        // Logging helpers
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logElement = document.getElementById('log');
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            logElement.textContent += args.join(' ') + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+        };
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            logElement.textContent += '❌ ERROR: ' + args.join(' ') + '\n';
+            logElement.scrollTop = logElement.scrollHeight;
+        };
+
+        // Utility: get all Sundays in a month
+        function getSundays(year, month) {
+            const sundays = [];
+            const d = new Date(year, month - 1, 1);
+            while (d.getMonth() === month - 1) {
+                if (d.getDay() === 0) sundays.push(new Date(d));
+                d.setDate(d.getDate() + 1);
+            }
+            return sundays;
+        }
+
+        // Utility: shuffle array in-place
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        // Step A: Clean DB
+        async function cleanDatabase() {
+            // Delete all gameDays
+            const gameDaysSnap = await getDocs(collection(db, 'gameDays'));
+            const deleteBatch = writeBatch(db);
+            gameDaysSnap.forEach(docSnap => {
+                deleteBatch.delete(doc(db, 'gameDays', docSnap.id));
+            });
+            await deleteBatch.commit();
+            console.log('🧹 All gameDays deleted');
+            // Reset all player stats
+            const playersSnap = await getDocs(collection(db, 'players'));
+            const resetBatch = writeBatch(db);
+            playersSnap.forEach(docSnap => {
+                resetBatch.update(doc(db, 'players', docSnap.id), {
+                    totalGames: 0,
+                    totalGoals: 0,
+                    totalAssists: 0,
+                    totalWins: 0
+                });
+            });
+            await resetBatch.commit();
+            console.log('🧹 All player stats reset');
+        }
+
+        // Step B: Generate Mock Data
+        async function createMockData() {
+            try {
+                await cleanDatabase();
+                // Fetch all players
+                const playersSnapshot = await getDocs(collection(db, 'players'));
+                const allPlayers = [];
+                playersSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.name) allPlayers.push({ id: doc.id, name: data.name });
+                });
+                if (allPlayers.length < 21) throw new Error('Not enough players in DB!');
+
+                // Months: Feb-Jun 2025
+                const months = [2, 3, 4, 5, 6];
+                const years = [2025, 2025, 2025, 2025, 2025];
+                let allGameDays = [];
+                let playerCareerStats = {};
+                allPlayers.forEach(p => playerCareerStats[p.id] = { goals: 0, assists: 0, wins: 0, games: 0 });
+
+                for (let m = 0; m < months.length; m++) {
+                    const year = years[m];
+                    const month = months[m];
+                    const sundays = getSundays(year, month);
+                    if (sundays.length < 2) throw new Error('Not enough Sundays in month!');
+                    // Pick 2 different Sundays
+                    shuffle(sundays);
+                    for (let s = 0; s < 2; s++) {
+                        const gameDate = sundays[s].toISOString().split('T')[0];
+                        // Select 21 players
+                        const shuffledPlayers = shuffle([...allPlayers]);
+                        const selectedPlayers = shuffledPlayers.slice(0, 21);
+                        // Assign to teams
+                        const teamA = selectedPlayers.slice(0, 7).map(p => p.id);
+                        const teamB = selectedPlayers.slice(7, 14).map(p => p.id);
+                        const teamC = selectedPlayers.slice(14, 21).map(p => p.id);
+                        const teams = { A: teamA, B: teamB, C: teamC };
+                        // Mini-games: 5-8
+                        const numGames = Math.floor(Math.random() * 4) + 5;
+                        const miniGames = [];
+                        // Track per-player stats for this game day
+                        const playerStats = {};
+                        selectedPlayers.forEach(p => playerStats[p.id] = { goals: 0, assists: 0, wins: 0 });
+                        for (let g = 0; g < numGames; g++) {
+                            // Pick two teams
+                            const teamKeys = shuffle(['A', 'B', 'C']).slice(0, 2);
+                            const team1 = teamKeys[0];
+                            const team2 = teamKeys[1];
+                            // Score: 0-0, 1-0, 1-1, 2-0, 2-1
+                            const possibleScores = [
+                                { a: 0, b: 0 }, { a: 1, b: 0 }, { a: 1, b: 1 }, { a: 2, b: 0 }, { a: 2, b: 1 }, { a: 0, b: 1 }, { a: 0, b: 2 }, { a: 1, b: 2 }
+                            ];
+                            const score = possibleScores[Math.floor(Math.random() * possibleScores.length)];
+                            // Assign goals/assists for team1
+                            const scorers = [];
+                            function assignGoals(teamArr, goals, teamLabel) {
+                                for (let i = 0; i < goals; i++) {
+                                    // Random scorer (can repeat)
+                                    const scorerIdx = Math.floor(Math.random() * teamArr.length);
+                                    const scorerId = teamArr[scorerIdx];
+                                    // Random assister (must be different)
+                                    let assisterId = null;
+                                    if (teamArr.length > 1) {
+                                        do {
+                                            assisterId = teamArr[Math.floor(Math.random() * teamArr.length)];
+                                        } while (assisterId === scorerId);
+                                    }
+                                    // Tally for this game day
+                                    playerStats[scorerId].goals += 1;
+                                    if (assisterId) playerStats[assisterId].assists += 1;
+                                    // For mini-game scorers array
+                                    let scorerObj = scorers.find(s => s.playerId === scorerId);
+                                    if (!scorerObj) { scorerObj = { playerId: scorerId, goals: 0, assists: 0 }; scorers.push(scorerObj); }
+                                    scorerObj.goals += 1;
+                                    if (assisterId) {
+                                        let assistObj = scorers.find(s => s.playerId === assisterId);
+                                        if (!assistObj) { assistObj = { playerId: assisterId, goals: 0, assists: 0 }; scorers.push(assistObj); }
+                                        assistObj.assists += 1;
+                                    }
+                                }
+                            }
+                            assignGoals(teams[team1], score.a, team1);
+                            assignGoals(teams[team2], score.b, team2);
+                            // Wins
+                            let winner = null;
+                            if (score.a > score.b) { winner = team1; teams[team1].forEach(pid => playerStats[pid].wins += 1); }
+                            else if (score.b > score.a) { winner = team2; teams[team2].forEach(pid => playerStats[pid].wins += 1); }
+                            miniGames.push({
+                                id: `game-${g + 1}`,
+                                teamA: team1,
+                                teamB: team2,
+                                scoreA: score.a,
+                                scoreB: score.b,
+                                winner: winner,
+                                scorers: scorers
+                            });
+                        }
+                        // Tally for career
+                        Object.keys(playerStats).forEach(pid => {
+                            playerCareerStats[pid].goals += playerStats[pid].goals;
+                            playerCareerStats[pid].assists += playerStats[pid].assists;
+                            playerCareerStats[pid].wins += playerStats[pid].wins;
+                            playerCareerStats[pid].games += 1;
+                        });
+                        // Save game day object
+                        allGameDays.push({
+                            id: gameDate,
+                            data: {
+                                date: gameDate,
+                                participants: selectedPlayers.map(p => p.id),
+                                teams: teams,
+                                miniGames: miniGames,
+                                playerStats: playerStats,
+                                status: getStatusForDate(gameDate),
+                                createdAt: new Date().toISOString(),
+                                endedAt: new Date(gameDate + 'T22:00:00').toISOString()
+                            }
+                        });
+                        console.log(`📅 Generated game for ${gameDate} with ${numGames} mini-games`);
+                    }
+                }
+                // Save all game days
+                console.log('💾 Saving game days to Firestore...');
+                for (const gameDay of allGameDays) {
+                    await setDoc(doc(db, 'gameDays', gameDay.id), gameDay.data);
+                }
+                // Update player career stats
+                console.log('📈 Updating player career stats...');
+                const playerBatch = writeBatch(db);
+                Object.keys(playerCareerStats).forEach(pid => {
+                    const stats = playerCareerStats[pid];
+                    playerBatch.update(doc(db, 'players', pid), {
+                        totalGoals: stats.goals,
+                        totalAssists: stats.assists,
+                        totalWins: stats.wins,
+                        totalGames: stats.games
+                    });
+                });
+                await playerBatch.commit();
+                console.log('🎉 Mock data creation completed successfully!');
+                console.log(`✅ Created ${allGameDays.length} game days`);
+                console.log(`✅ Updated stats for ${Object.keys(playerCareerStats).length} players`);
+            } catch (error) {
+                console.error('❌ Error creating mock data:', error);
+            }
+        }
+
+        // Utility: get today's date in Israeli timezone
+        function getTodayIsrael() {
+            return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Jerusalem' });
+        }
+        
+        function getStatusForDate(gameDate) {
+            const now = luxon.DateTime.now().setZone('Asia/Jerusalem');
+            const [year, month, day] = gameDate.split('-').map(Number);
+            const gameDateObj = luxon.DateTime.fromObject({ year, month, day }, { zone: 'Asia/Jerusalem' });
+            
+            // Normalize both dates to start of day for proper comparison
+            const nowDay = now.startOf('day');
+            const gameDay = gameDateObj.startOf('day');
+            
+            if (gameDay.equals(nowDay)) return 2; // live (today)
+            if (gameDay > nowDay) return 1; // upcoming (future)
+            return 3; // completed (past)
+        }
+
+        window.runMockDataCreation = async function() {
+            const button = document.getElementById('createMockData');
+            button.disabled = true;
+            button.textContent = 'יוצר נתונים...';
+            logElement.textContent = '';
+            try {
+                await createMockData();
+                button.textContent = '✅ הושלם בהצלחה!';
+                button.style.backgroundColor = '#4caf50';
+            } catch (error) {
+                button.textContent = '❌ שגיאה - נסה שוב';
+                button.style.backgroundColor = '#f44336';
+                button.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html> 

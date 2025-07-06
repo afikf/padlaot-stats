@@ -9,15 +9,20 @@
 <body>
 
     <div class="page-container">
+        <!-- Community Logo -->
+        <div class="community-logo" onclick="window.location.href='index.html'" title="חזרה לעמוד הראשי">
+            <img src="logo.jpeg" alt="כדורגל פדלאות" />
+        </div>
+        
         <header class="main-header">
             <div class="top-nav">
                 <nav class="view-toggle">
-                    <button id="overall-view-btn" class="active">📊 תצוגה כללית</button>
-                    <button id="by-game-view-btn">📅 תצוגה לפי משחק</button>
+                    <button id="timeline-view-btn" class="active">📅 ציר זמן</button>
+                    <button id="performance-view-btn">ביצועי שחקנים</button>
                 </nav>
-                <div class="nav-actions">
-                    <a href="form.html" class="add-data-btn">➕ הוסף / ערוך נתונים</a>
-                    <a href="admin.html" class="add-data-btn" style="background-color: #e74c3c;">🔧 ניהול ערב משחק</a>
+                <div class="admin-access">
+                    <a href="admin.html" class="admin-btn">🔧 ניהול</a>
+                    <button id="refresh-btn" class="refresh-btn-compact">🔄</button>
                 </div>
             </div>
             
@@ -30,14 +35,44 @@
         <main>
             <div id="loader" class="loader"></div>
             
-            <!-- Container for the overall statistics table -->
-            <div id="overall-view-container">
-                <!-- Overall table will be generated here by JS -->
+            <!-- Timeline View Container -->
+            <div id="timeline-view-container" class="view-container">
+                <div class="history-controls">
+                    <div class="search-container">
+                        <input type="text" id="search-input" placeholder="חפש שחקן או תאריך...">
+                        <button id="search-btn">🔍</button>
+                    </div>
+                    
+                    <div class="filter-container">
+                        <select id="month-filter">
+                            <option value="">כל החודשים</option>
+                        </select>
+                        <select id="status-filter">
+                            <option value="">כל הסטטוסים</option>
+                            <option value="completed">הושלם</option>
+                            <option value="live">בשידור חי</option>
+                            <option value="upcoming">עתיד</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="quick-stats-section">
+                    <h3>סטטיסטיקות מהירות</h3>
+                    <div id="quick-stats-grid" class="quick-stats-grid">
+                        <!-- Quick stats will be populated here -->
+                    </div>
+                </div>
+
+                <div id="game-nights-container">
+                    <!-- Game nights will be populated here -->
+                </div>
             </div>
 
-            <!-- Container for the by-game statistics tables -->
-            <div id="by-game-view-container" class="hidden">
-                <!-- By-game tables will be generated here by JS -->
+            <!-- Performance View Container -->
+            <div id="performance-view-container" class="view-container hidden">
+                <div id="performance-content">
+                    <!-- Performance content will be populated here -->
+                </div>
             </div>
         </main>
     </div>

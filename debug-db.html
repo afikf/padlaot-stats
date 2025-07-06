@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>בדיקת מאגר נתונים - כדור-רגל פדלאות</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .data-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+        .field-name {
+            font-weight: bold;
+            color: #495057;
+        }
+        .field-value {
+            color: #6c757d;
+            margin-left: 10px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 2px 0;
+        }
+        .log-entry.info { color: #007bff; }
+        .log-entry.success { color: #28a745; }
+        .log-entry.warning { color: #ffc107; }
+        .log-entry.error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 בדיקת מאגר נתונים</h1>
+        
+        <div class="section">
+            <h3>פעולות</h3>
+            <button onclick="loadPlayersData()">טען נתוני שחקנים</button>
+            <button onclick="loadGameDaysData()">טען נתוני ערבי משחק</button>
+            <button onclick="analyzeDatabase()">נתח מאגר נתונים</button>
+            <button onclick="clearLog()">נקה לוג</button>
+        </div>
+
+        <div class="section">
+            <h3>לוג פעילות</h3>
+            <div id="log" class="log">
+                <div class="log-entry info">מוכן לבדיקה...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>נתוני שחקנים</h3>
+            <div id="players-data" class="data-grid">
+                <!-- Players data will be shown here -->
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>נתוני ערבי משחק</h3>
+            <div id="gamedays-data" class="data-grid">
+                <!-- Game days data will be shown here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Configuration -->
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module">
+        import { 
+            db, 
+            collection, 
+            getDocs, 
+            doc, 
+            getDoc
+        } from './firebase-config.js';
+
+        let allPlayers = [];
+        let allGameDays = [];
+
+        function addLogEntry(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `${new Date().toLocaleTimeString('he-IL')} - ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<div class="log-entry info">לוג נוקה...</div>';
+        }
+
+        async function loadPlayersData() {
+            try {
+                addLogEntry('טוען נתוני שחקנים...', 'info');
+                
+                const playersSnapshot = await getDocs(collection(db, 'players'));
+                allPlayers = [];
+                
+                playersSnapshot.forEach((doc) => {
+                    const playerData = doc.data();
+                    allPlayers.push({
+                        id: doc.id,
+                        ...playerData
+                    });
+                });
+
+                addLogEntry(`נטענו ${allPlayers.length} שחקנים`, 'success');
+                renderPlayersData();
+                
+            } catch (error) {
+                addLogEntry(`שגיאה בטעינת שחקנים: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadGameDaysData() {
+            try {
+                addLogEntry('טוען נתוני ערבי משחק...', 'info');
+                
+                const gameDaysSnapshot = await getDocs(collection(db, 'gameDays'));
+                allGameDays = [];
+                
+                gameDaysSnapshot.forEach((doc) => {
+                    const gameData = doc.data();
+                    allGameDays.push({
+                        id: doc.id,
+                        ...gameData
+                    });
+                });
+
+                addLogEntry(`נטענו ${allGameDays.length} ערבי משחק`, 'success');
+                renderGameDaysData();
+                
+            } catch (error) {
+                addLogEntry(`שגיאה בטעינת ערבי משחק: ${error.message}`, 'error');
+            }
+        }
+
+        function renderPlayersData() {
+            const container = document.getElementById('players-data');
+            container.innerHTML = '';
+
+            if (allPlayers.length === 0) {
+                container.innerHTML = '<div class="data-item">אין נתוני שחקנים</div>';
+                return;
+            }
+
+            allPlayers.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'data-item';
+                
+                const fields = Object.keys(player).map(key => {
+                    return `<div><span class="field-name">${key}:</span><span class="field-value">${player[key]}</span></div>`;
+                }).join('');
+                
+                playerDiv.innerHTML = `
+                    <strong>${player.name || player.id}</strong>
+                    ${fields}
+                `;
+                
+                container.appendChild(playerDiv);
+            });
+        }
+
+        function renderGameDaysData() {
+            const container = document.getElementById('gamedays-data');
+            container.innerHTML = '';
+
+            if (allGameDays.length === 0) {
+                container.innerHTML = '<div class="data-item">אין נתוני ערבי משחק</div>';
+                return;
+            }
+
+            allGameDays.forEach(gameDay => {
+                const gameDayDiv = document.createElement('div');
+                gameDayDiv.className = 'data-item';
+                
+                const participants = gameDay.participants ? gameDay.participants.length : 0;
+                const miniGames = gameDay.miniGames ? gameDay.miniGames.length : 0;
+                
+                gameDayDiv.innerHTML = `
+                    <strong>${gameDay.date || gameDay.id}</strong>
+                    <div><span class="field-name">סטטוס:</span><span class="field-value">${gameDay.status}</span></div>
+                    <div><span class="field-name">משתתפים:</span><span class="field-value">${participants}</span></div>
+                    <div><span class="field-name">משחקים קטנים:</span><span class="field-value">${miniGames}</span></div>
+                    <div><span class="field-name">קבוצות:</span><span class="field-value">${gameDay.teams ? Object.keys(gameDay.teams).join(', ') : 'אין'}</span></div>
+                `;
+                
+                container.appendChild(gameDayDiv);
+            });
+        }
+
+        async function analyzeDatabase() {
+            try {
+                addLogEntry('מתחיל ניתוח מאגר נתונים...', 'info');
+                
+                // Load data if not already loaded
+                if (allPlayers.length === 0) {
+                    await loadPlayersData();
+                }
+                if (allGameDays.length === 0) {
+                    await loadGameDaysData();
+                }
+
+                // Analyze players
+                addLogEntry('מנתח נתוני שחקנים...', 'info');
+                
+                const playersWithOldFields = allPlayers.filter(p => 
+                    p.hasOwnProperty('totalGoals') || p.hasOwnProperty('totalAssists') || p.hasOwnProperty('totalWins')
+                );
+                
+                const playersWithNewFields = allPlayers.filter(p => 
+                    p.hasOwnProperty('goals') || p.hasOwnProperty('assists') || p.hasOwnProperty('wins')
+                );
+
+                const playersWithGameNights = allPlayers.filter(p => p.hasOwnProperty('totalGameNights'));
+                const playersWithMiniGames = allPlayers.filter(p => p.hasOwnProperty('totalMiniGames'));
+
+                addLogEntry(`שחקנים עם שדות ישנים (totalGoals/totalAssists/totalWins): ${playersWithOldFields.length}`, 'info');
+                addLogEntry(`שחקנים עם שדות חדשים (goals/assists/wins): ${playersWithNewFields.length}`, 'info');
+                addLogEntry(`שחקנים עם totalGameNights: ${playersWithGameNights.length}`, 'info');
+                addLogEntry(`שחקנים עם totalMiniGames: ${playersWithMiniGames.length}`, 'info');
+
+                // Analyze game days
+                addLogEntry('מנתח נתוני ערבי משחק...', 'info');
+                
+                const completedGames = allGameDays.filter(gd => gd.status === 3 || gd.status === 'completed');
+                const totalMiniGames = allGameDays.reduce((sum, gd) => sum + (gd.miniGames ? gd.miniGames.length : 0), 0);
+
+                addLogEntry(`ערבי משחק שהושלמו: ${completedGames.length}`, 'info');
+                addLogEntry(`סך משחקים קטנים: ${totalMiniGames}`, 'info');
+
+                // Show field inconsistencies
+                if (playersWithOldFields.length > 0) {
+                    addLogEntry(`⚠️ נמצאו ${playersWithOldFields.length} שחקנים עם שדות ישנים`, 'warning');
+                }
+
+                addLogEntry('ניתוח הושלם!', 'success');
+
+            } catch (error) {
+                addLogEntry(`שגיאה בניתוח: ${error.message}`, 'error');
+            }
+        }
+
+        // Make functions global for button onclick
+        window.loadPlayersData = loadPlayersData;
+        window.loadGameDaysData = loadGameDaysData;
+        window.analyzeDatabase = analyzeDatabase;
+        window.clearLog = clearLog;
+    </script>
+</body>
+</html> 
