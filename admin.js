@@ -622,6 +622,11 @@ function initializeApp() {
             });
         }
         
+        // Check for edit parameter in URL after authentication
+        setTimeout(() => {
+            checkForEditParameter();
+        }, 1000);
+        
         console.log('Admin app initialized successfully');
     } catch (error) {
         console.error('Error initializing admin app:', error);
@@ -715,18 +720,16 @@ function setupRoleBasedTabVisibility() {
     console.log('Admin management tab element:', adminManagementTab);
     console.log('Admin management panel element:', adminManagementPanel);
     
-    // TEMPORARY FIX: Always hide admin management tab by removing it from DOM
-    if (adminManagementTab) {
-        adminManagementTab.remove();
-        console.log('Admin management tab REMOVED from DOM');
-    }
-    if (adminManagementPanel) {
-        adminManagementPanel.remove();
-        console.log('Admin management panel REMOVED from DOM');
+    // If role is not set yet, retry after a short delay
+    if (!currentUserRole || currentUserRole === '') {
+        console.log('Role not set yet, retrying in 200ms...');
+        setTimeout(() => {
+            setupRoleBasedTabVisibility();
+        }, 200);
+        return;
     }
     
-    // Original logic (commented out for now)
-    /*
+    // Show/hide admin management tab based on user role
     if (currentUserRole !== 'super-admin') {
         if (adminManagementTab) {
             adminManagementTab.style.display = 'none';
@@ -748,7 +751,6 @@ function setupRoleBasedTabVisibility() {
         }
         console.log('Admin management tab shown for super admin');
     }
-    */
 }
 
 function switchToTab(tabName) {
@@ -1067,6 +1069,19 @@ function renderManagementGamesSection(sectionPrefix, games, statusType) {
                 <button class="edit-btn" onclick="manageLiveGame()">נהל משחק</button>
                 <button class="view-btn" onclick="viewGameDayDetails('${game.id}')">צפה</button>
             `;
+        } else if (game.status === 3) { // Completed
+            // Only super-admin can edit completed games
+            if (currentUserRole === 'super-admin') {
+                actionsHtml = `
+                    <button class="edit-btn" onclick="editGameDay('${game.id}')">ערוך</button>
+                    <button class="view-btn" onclick="viewGameDayDetails('${game.id}')">צפה</button>
+                    <button class="delete-btn" onclick="deleteGameDay('${game.id}', '${dateFormatted}')">מחק</button>
+                `;
+            } else {
+                actionsHtml = `
+                    <button class="view-btn" onclick="viewGameDayDetails('${game.id}')">צפה</button>
+                `;
+            }
         } else if (game.status === 4) { // Not Completed
             actionsHtml = `
                 <button class="edit-btn" onclick="editGameDay('${game.id}')">השלם משחק</button>
@@ -1178,11 +1193,20 @@ async function isAuthorizedAdmin(email) {
         // In demo mode, assign different roles based on email
         if (email === AUTHORIZED_ADMIN_EMAIL) {
             currentUserRole = 'super-admin';
+            window.currentUserRole = currentUserRole;
         } else if (email === 'regular@example.com') {
             currentUserRole = 'admin';
+            window.currentUserRole = currentUserRole;
         } else {
             currentUserRole = 'admin'; // Default to admin for any other email
+            window.currentUserRole = currentUserRole;
         }
+        
+        // Update role-based visibility after setting the role
+        setTimeout(() => {
+            setupRoleBasedTabVisibility();
+        }, 50);
+        
         return true;
     }
     
@@ -1195,7 +1219,14 @@ async function isAuthorizedAdmin(email) {
         
         if (adminRecord) {
             currentUserRole = adminRecord.role;
+            window.currentUserRole = currentUserRole;
             console.log('Set currentUserRole to:', currentUserRole);
+            
+            // Update role-based visibility after setting the role
+            setTimeout(() => {
+                setupRoleBasedTabVisibility();
+            }, 50);
+            
             return true;
         }
         
@@ -1281,8 +1312,10 @@ function showAdminInterface(user = null) {
     setupAdminTabNavigation();
     setupDashboardCreateButton();
     
-    // Handle role-based tab visibility
-    setupRoleBasedTabVisibility();
+    // Handle role-based tab visibility - delay to ensure role is set
+    setTimeout(() => {
+        setupRoleBasedTabVisibility();
+    }, 100);
     
     // Only run expensive operations once per session
     if (!window.adminInterfaceInitialized) {
@@ -2652,7 +2685,7 @@ function getTeamDisplayName(teamLetter) {
     if (teams[teamLetter] && teams[teamLetter].length > 0) {
         const captainId = teams[teamLetter][0];
         const captain = allPlayers.find(p => p.id === captainId);
-        return `קבוצת ${captain.name} 👑`;
+        return `${captain.name} 👑`;
     }
     return `קבוצה ${teamLetter}`;
 }
@@ -2689,6 +2722,9 @@ function addMiniGame() {
     // Re-render all games to update numbering
     renderAllMiniGames();
     
+    // Update stopwatch game selection dropdown
+    updateTimerGameSelection();
+    
     // Update stats display (even though game is empty, it ensures the display is ready)
     updateStatsDisplay();
 }
@@ -2714,9 +2750,32 @@ function renderMiniGame(miniGame, gameNumber = null) {
     miniGameElement.className = 'mini-game';
     miniGameElement.dataset.gameId = miniGame.id;
     
+    // Check if this game was recorded live (has stopwatch data)
+    const wasRecordedLive = miniGame.durationSeconds !== undefined;
+    
+    // Initialize lock state if not already set
+    if (wasRecordedLive && miniGame.isLocked === undefined) {
+        miniGame.isLocked = true; // Lock by default for live-recorded games
+    }
+    
     // Default state is expanded for all games
     const hasContent = miniGame.teamA && miniGame.teamB && (miniGame.scoreA > 0 || miniGame.scoreB > 0);
     const isCollapsed = false; // All games start expanded by default
+    
+    // Create lock icon and indicator
+    const lockIcon = wasRecordedLive ? `
+        <button class="game-lock-btn ${miniGame.isLocked ? 'locked' : 'unlocked'}" 
+                onclick="toggleGameLock('${miniGame.id}')" 
+                title="${miniGame.isLocked ? 'משחק נעול - נרשם בזמן אמת. לחץ לפתיחת עריכה' : 'משחק פתוח לעריכה. לחץ לנעילה'}">
+            <span class="lock-icon">${miniGame.isLocked ? '🔒' : '🔓'}</span>
+        </button>
+    ` : '';
+    
+    const liveIndicator = wasRecordedLive ? `
+        <span class="live-recorded-indicator" title="משחק נרשם בזמן אמת עם סטופר">
+            ⏱️ חי
+        </span>
+    ` : '';
     
     miniGameElement.innerHTML = `
         <div class="mini-game-header">
@@ -2725,16 +2784,24 @@ function renderMiniGame(miniGame, gameNumber = null) {
                     <span class="collapse-icon">${isCollapsed ? '▼' : '▲'}</span>
                 </button>
                 <h4>משחק ${gameNumber}</h4>
-                ${hasContent ? `<span class="game-summary">${getTeamDisplayName(miniGame.teamA)} ${miniGame.scoreA}-${miniGame.scoreB} ${getTeamDisplayName(miniGame.teamB)}</span>` : ''}
+                ${liveIndicator}
+                ${hasContent ? `
+                    <div class="game-summary">
+                        ${getGameSummaryWithScorers(miniGame)}
+                    </div>
+                ` : ''}
             </div>
-            <button class="remove-game-btn" onclick="removeMiniGame('${miniGame.id}')">הסר</button>
+            <div class="game-header-right">
+                ${lockIcon}
+                <button class="remove-game-btn" onclick="removeMiniGame('${miniGame.id}')">הסר</button>
+            </div>
         </div>
         
-        <div class="game-content" ${isCollapsed ? 'style="display: none;"' : ''}>
+        <div class="game-content ${miniGame.isLocked ? 'locked-content' : ''}" ${isCollapsed ? 'style="display: none;"' : ''}>
             <div class="game-setup">
                 <div class="team-selection">
                     <label>קבוצה 1:</label>
-                    <select class="team-select" data-team="A">
+                    <select class="team-select" data-team="A" ${miniGame.isLocked ? 'disabled' : ''}>
                         <option value="">בחר קבוצה</option>
                         ${generateTeamOptions()}
                     </select>
@@ -2744,7 +2811,7 @@ function renderMiniGame(miniGame, gameNumber = null) {
                 
                 <div class="team-selection">
                     <label>קבוצה 2:</label>
-                    <select class="team-select" data-team="B">
+                    <select class="team-select" data-team="B" ${miniGame.isLocked ? 'disabled' : ''}>
                         <option value="">בחר קבוצה</option>
                         ${generateTeamOptions()}
                     </select>
@@ -2754,12 +2821,12 @@ function renderMiniGame(miniGame, gameNumber = null) {
             <div class="score-section">
                 <div class="score-input">
                     <label>תוצאה קבוצה 1:</label>
-                    <input type="number" min="0" class="score-input-field" data-team="A" value="0">
+                    <input type="number" min="0" class="score-input-field" data-team="A" value="0" ${miniGame.isLocked ? 'readonly' : ''}>
                 </div>
                 
                 <div class="score-input">
                     <label>תוצאה קבוצה 2:</label>
-                    <input type="number" min="0" class="score-input-field" data-team="B" value="0">
+                    <input type="number" min="0" class="score-input-field" data-team="B" value="0" ${miniGame.isLocked ? 'readonly' : ''}>
                 </div>
             </div>
             
@@ -2769,6 +2836,20 @@ function renderMiniGame(miniGame, gameNumber = null) {
                     <!-- Scorers will be added here -->
                 </div>
             </div>
+            
+            ${wasRecordedLive ? `
+                <div class="live-game-info">
+                    <div class="live-game-duration">
+                        <span class="duration-label">משך המשחק:</span>
+                        <span class="duration-value">${formatDuration(miniGame.durationSeconds)}</span>
+                    </div>
+                    ${miniGame.isLocked ? `
+                        <div class="lock-message">
+                            <span class="lock-message-text">🔒 משחק נעול - נרשם בזמן אמת. לחץ על הנעילה לעריכה</span>
+                        </div>
+                    ` : ''}
+                </div>
+            ` : ''}
         </div>
     `;
     
@@ -2849,6 +2930,14 @@ function updateTeamSelection(gameId) {
         
         miniGame.teamA = teamSelects[0].value;
         miniGame.teamB = teamSelects[1].value;
+        
+        // Update stopwatch game selection dropdown to reflect team changes
+        updateTimerGameSelection();
+        
+        // Update current game info if this is the selected game
+        if (stopwatchState.currentGameId === gameId) {
+            updateCurrentGameInfo();
+        }
         
         updateScorersSection(gameId);
         
@@ -3031,6 +3120,10 @@ function createPlayerScorerElement(player, playerId, gameId, team) {
     playerScorer.className = `player-scorer team-${team.toLowerCase()}`;
     playerScorer.dataset.playerName = player.name.toLowerCase();
     
+    // Check if the game is locked
+    const miniGame = miniGames.find(g => g.id === gameId);
+    const isLocked = miniGame && miniGame.isLocked;
+    
     playerScorer.innerHTML = `
         <div class="player-info">
             <span class="player-name">${player.name}</span>
@@ -3038,11 +3131,11 @@ function createPlayerScorerElement(player, playerId, gameId, team) {
         <div class="scorer-inputs">
             <div class="input-group">
                 <label>גולים:</label>
-                <input type="number" min="0" value="0" class="goals-input" data-player-id="${playerId}">
+                <input type="number" min="0" value="0" class="goals-input" data-player-id="${playerId}" ${isLocked ? 'readonly' : ''}>
             </div>
             <div class="input-group">
                 <label>בישולים:</label>
-                <input type="number" min="0" value="0" class="assists-input" data-player-id="${playerId}">
+                <input type="number" min="0" value="0" class="assists-input" data-player-id="${playerId}" ${isLocked ? 'readonly' : ''}>
             </div>
         </div>
     `;
@@ -3050,8 +3143,11 @@ function createPlayerScorerElement(player, playerId, gameId, team) {
     const goalsInput = playerScorer.querySelector('.goals-input');
     const assistsInput = playerScorer.querySelector('.assists-input');
     
-    goalsInput.addEventListener('input', () => updatePlayerGameStats(gameId, playerId));
-    assistsInput.addEventListener('input', () => updatePlayerGameStats(gameId, playerId));
+    // Only add event listeners if not locked
+    if (!isLocked) {
+        goalsInput.addEventListener('input', () => updatePlayerGameStats(gameId, playerId));
+        assistsInput.addEventListener('input', () => updatePlayerGameStats(gameId, playerId));
+    }
     
     return playerScorer;
 }
@@ -3261,6 +3357,128 @@ function toggleGameCollapse(gameId) {
     }
 }
 
+// Toggle game lock state
+function toggleGameLock(gameId) {
+    const miniGame = miniGames.find(g => g.id === gameId);
+    if (!miniGame) return;
+    
+    // Toggle lock state
+    miniGame.isLocked = !miniGame.isLocked;
+    
+    // Re-render the game to update UI
+    renderAllMiniGames();
+    
+    // Show feedback
+    const lockState = miniGame.isLocked ? 'נעול' : 'פתוח לעריכה';
+    showToast(`משחק ${lockState}`, 'info');
+    
+    // Auto-save if in live mode
+    if (window.currentLiveGame) {
+        autoSaveLiveGame();
+    }
+}
+
+// Format duration in seconds to MM:SS format
+function formatDuration(seconds) {
+    if (!seconds) return '00:00';
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Generate game summary with scorers under team names
+function getGameSummaryWithScorers(miniGame) {
+    const teamAName = getTeamDisplayName(miniGame.teamA);
+    const teamBName = getTeamDisplayName(miniGame.teamB);
+    const scoreA = miniGame.scoreA || 0;
+    const scoreB = miniGame.scoreB || 0;
+    
+    // Get scorers for each team
+    const teamAScorers = getTeamScorers(miniGame, miniGame.teamA);
+    const teamBScorers = getTeamScorers(miniGame, miniGame.teamB);
+    
+    return `
+        <div class="game-score-layout">
+            <div class="score-line">
+                <div class="team-score-section">
+                    <div class="team-name">${teamAName}</div>
+                    <div class="team-scorers">${teamAScorers}</div>
+                </div>
+                <div class="score-center">${scoreA} - ${scoreB}</div>
+                <div class="team-score-section">
+                    <div class="team-name">${teamBName}</div>
+                    <div class="team-scorers">${teamBScorers}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Get scorers for a specific team
+function getTeamScorers(miniGame, teamLetter) {
+    if (!miniGame.scorers || miniGame.scorers.length === 0) return '';
+    
+    const teamPlayers = teams[teamLetter] || [];
+    const scorers = [];
+    
+    // Get all goals from live goals if available, otherwise use scorers data
+    const goals = getGoalsForTeam(miniGame, teamLetter);
+    
+    goals.forEach(goal => {
+        const scorer = allPlayers.find(p => p.id === goal.scorerId);
+        if (scorer) {
+            let scorerText = scorer.name;
+            
+            // Add assister name in parentheses if available
+            if (goal.assisterId) {
+                const assister = allPlayers.find(p => p.id === goal.assisterId);
+                if (assister) {
+                    scorerText += `(${assister.name})`;
+                }
+            }
+            
+            scorers.push(scorerText);
+        }
+    });
+    
+    return scorers.join(', ');
+}
+
+// Get goals for a specific team from live goals or scorers data
+function getGoalsForTeam(miniGame, teamLetter) {
+    const teamPlayers = teams[teamLetter] || [];
+    const goals = [];
+    
+    // First try to get from live goals (more detailed)
+    if (miniGame.liveGoals && miniGame.liveGoals.length > 0) {
+        miniGame.liveGoals.forEach(goal => {
+            if (teamPlayers.includes(goal.scorerId)) {
+                goals.push({
+                    scorerId: goal.scorerId,
+                    assisterId: goal.assisterId
+                });
+            }
+        });
+    } else if (miniGame.scorers && miniGame.scorers.length > 0) {
+        // Fallback to scorers data (less detailed, no assist info)
+        miniGame.scorers.forEach(scorer => {
+            if (scorer.goals > 0 && teamPlayers.includes(scorer.playerId)) {
+                // Add one entry for each goal
+                for (let i = 0; i < scorer.goals; i++) {
+                    goals.push({
+                        scorerId: scorer.playerId,
+                        assisterId: null // No assist info available in scorers format
+                    });
+                }
+            }
+        });
+    }
+    
+    return goals;
+}
+
 // Helper function to calculate and apply stat reversals
 async function reversePlayerStats(playerStatsToReverse) {
     if (DEMO_MODE) {
@@ -3324,6 +3542,9 @@ function removeMiniGame(gameId) {
     
     // Re-render all games to update numbering
     renderAllMiniGames();
+    
+    // Update stopwatch game selection dropdown
+    updateTimerGameSelection();
     
     recalculatePlayerStats();
     updateStatsDisplay();
@@ -3513,6 +3734,9 @@ function goToStep(stepNumber) {
             if (finalizeBtn) finalizeBtn.style.display = 'block';
             if (liveControls) liveControls.style.display = 'block';
         }
+        
+        // Initialize stopwatch system for real-time game management
+        initializeStopwatch();
         
         // Always update stats display when entering Step 4
         updateStatsDisplay();
@@ -4503,9 +4727,14 @@ function renderGameDayHistory(gameDays) {
                     </div>
                 </div>
                 <div class="history-item-actions">
-                    <button class="secondary-btn" onclick="editGameDay('${gameDay.id}')">ערוך</button>
-                    <button class="secondary-btn" onclick="viewGameDayDetails('${gameDay.id}')">צפה</button>
-                    <button class="delete-btn" onclick="deleteGameDay('${gameDay.id}', '${dateFormatted}')">מחק</button>
+                    ${gameDay.status === 3 && currentUserRole !== 'super-admin' ? 
+                        // Completed games - only super-admin can edit
+                        `<button class="secondary-btn" onclick="viewGameDayDetails('${gameDay.id}')">צפה</button>` :
+                        // All other statuses or super-admin
+                        `<button class="secondary-btn" onclick="editGameDay('${gameDay.id}')">ערוך</button>
+                         <button class="secondary-btn" onclick="viewGameDayDetails('${gameDay.id}')">צפה</button>
+                         <button class="delete-btn" onclick="deleteGameDay('${gameDay.id}', '${dateFormatted}')">מחק</button>`
+                    }
                 </div>
             </div>
         `;
@@ -4517,6 +4746,20 @@ function renderGameDayHistory(gameDays) {
 async function editGameDay(gameDayId) {
     try {
         console.log('Loading game day for editing:', gameDayId);
+        
+        // First, check if this is a completed game and user has permission
+        if (!DEMO_MODE) {
+            const docRef = doc(db, 'gameDays', gameDayId);
+            const docSnap = await getDoc(docRef);
+            
+            if (docSnap.exists()) {
+                const gameData = docSnap.data();
+                if (gameData.status === 3 && currentUserRole !== 'super-admin') {
+                    alert('רק מנהל על יכול לערוך ערבי משחק שהושלמו');
+                    return;
+                }
+            }
+        }
         
         // Load the specific game day
         let gameDay;
@@ -5720,6 +5963,885 @@ function showGameSavedFeedback(gameId) {
             }
         }, 3000);
     }
+}
+
+// =================================
+// Live Mini-Game Stopwatch System
+// =================================
+
+// Stopwatch state variables
+let stopwatchState = {
+    isRunning: false,
+    isPaused: false,
+    startTime: null,
+    pausedTime: 0,
+    currentGameId: null,
+    timerInterval: null,
+    liveGoals: []
+};
+
+// Initialize stopwatch when step 4 is loaded
+function initializeStopwatch() {
+    console.log('Initializing Live Mini-Game Stopwatch...');
+    
+    // Get DOM elements
+    const startStopBtn = document.getElementById('start-stop-btn');
+    const pauseResumeBtn = document.getElementById('pause-resume-btn');
+    const timerGameSelect = document.getElementById('timer-game-select');
+    const addGoalBtn = document.getElementById('add-goal-btn');
+    
+    // Add event listeners
+    if (startStopBtn) {
+        startStopBtn.addEventListener('click', handleStartStopClick);
+    }
+    if (pauseResumeBtn) {
+        pauseResumeBtn.addEventListener('click', handlePauseResumeClick);
+    }
+    if (timerGameSelect) {
+        timerGameSelect.addEventListener('change', handleGameSelectionChange);
+    }
+    if (addGoalBtn) {
+        addGoalBtn.addEventListener('click', showGoalLoggingModal);
+    }
+    
+    // Update game selection dropdown
+    updateTimerGameSelection();
+    
+    // Reset stopwatch state
+    resetStopwatchState();
+    
+    console.log('Stopwatch initialized successfully');
+}
+
+// Reset stopwatch to initial state
+function resetStopwatchState() {
+    stopwatchState = {
+        isRunning: false,
+        isPaused: false,
+        startTime: null,
+        pausedTime: 0,
+        currentGameId: null,
+        timerInterval: null,
+        liveGoals: []
+    };
+    
+    updateStopwatchDisplay();
+    updateStopwatchControls();
+    updateCurrentGameInfo();
+}
+
+// Update the timer game selection dropdown
+function updateTimerGameSelection() {
+    const timerGameSelect = document.getElementById('timer-game-select');
+    if (!timerGameSelect) return;
+    
+    // Store current selection
+    const currentSelection = timerGameSelect.value;
+    
+    // Clear existing options except the first one
+    timerGameSelect.innerHTML = '<option value="">-- בחר משחק --</option>';
+    
+    // Add options for each mini-game
+    miniGames.forEach((game, index) => {
+        const gameNumber = game.gameNumber || (index + 1);
+        let optionText = `משחק ${gameNumber}`;
+        
+        if (game.teamA && game.teamB) {
+            const teamAName = getTeamDisplayName(game.teamA);
+            const teamBName = getTeamDisplayName(game.teamB);
+            
+            // If game is completed, show results and disable
+            if (game.durationSeconds) {
+                const scoreA = game.scoreA || 0;
+                const scoreB = game.scoreB || 0;
+                optionText += ` - ${teamAName} ${scoreA}-${scoreB} ${teamBName} (הושלם)`;
+            } else {
+                optionText += ` - ${teamAName} נגד ${teamBName}`;
+            }
+        } else if (game.durationSeconds) {
+            optionText += ' (הושלם)';
+        }
+        
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = optionText;
+        
+        // Disable completed games
+        if (game.durationSeconds) {
+            option.disabled = true;
+            option.style.color = '#6c757d';
+            option.style.fontStyle = 'italic';
+        }
+        
+        timerGameSelect.appendChild(option);
+    });
+    
+    // Restore selection if still valid and not completed
+    if (currentSelection) {
+        const currentGame = miniGames.find(g => g.id === currentSelection);
+        if (currentGame && !currentGame.durationSeconds) {
+            timerGameSelect.value = currentSelection;
+        }
+    }
+}
+
+// Handle game selection change
+function handleGameSelectionChange(event) {
+    const gameId = event.target.value;
+    
+    if (gameId) {
+        stopwatchState.currentGameId = gameId;
+        updateCurrentGameInfo();
+        
+        // Enable start button
+        const startStopBtn = document.getElementById('start-stop-btn');
+        if (startStopBtn) {
+            startStopBtn.disabled = false;
+        }
+        
+        // Load existing duration if available
+        const selectedGame = miniGames.find(g => g.id === gameId);
+        if (selectedGame && selectedGame.durationSeconds) {
+            // If game has existing duration, show it but don't start timer
+            displayTime(selectedGame.durationSeconds);
+            updateStopwatchStatus('משחק הושלם');
+        } else {
+            // Reset display for new game
+            displayTime(0);
+            updateStopwatchStatus('מוכן להתחלה');
+        }
+        
+        // Load existing live goals for this game
+        loadLiveGoalsForGame(gameId);
+    } else {
+        stopwatchState.currentGameId = null;
+        updateCurrentGameInfo();
+        
+        // Disable start button
+        const startStopBtn = document.getElementById('start-stop-btn');
+        if (startStopBtn) {
+            startStopBtn.disabled = true;
+        }
+        
+        resetStopwatchState();
+    }
+}
+
+// Calculate live scores from goals
+function calculateLiveScores(gameId) {
+    const selectedGame = miniGames.find(g => g.id === gameId);
+    if (!selectedGame) return { scoreA: 0, scoreB: 0 };
+    
+    let scoreA = 0;
+    let scoreB = 0;
+    
+    // Count goals from live goals array
+    stopwatchState.liveGoals.forEach(goal => {
+        if (goal.team === selectedGame.teamA) {
+            scoreA++;
+        } else if (goal.team === selectedGame.teamB) {
+            scoreB++;
+        }
+    });
+    
+    return { scoreA, scoreB };
+}
+
+// Update live score display
+function updateLiveScoreDisplay() {
+    const liveScoreDisplay = document.getElementById('live-score-display');
+    const teamAName = document.getElementById('team-a-name');
+    const teamBName = document.getElementById('team-b-name');
+    const teamAScore = document.getElementById('team-a-score');
+    const teamBScore = document.getElementById('team-b-score');
+    
+    if (!liveScoreDisplay || !teamAName || !teamBName || !teamAScore || !teamBScore) return;
+    
+    if (stopwatchState.currentGameId && (stopwatchState.isRunning || stopwatchState.isPaused)) {
+        const selectedGame = miniGames.find(g => g.id === stopwatchState.currentGameId);
+        if (selectedGame && selectedGame.teamA && selectedGame.teamB) {
+            const teamADisplayName = getTeamDisplayName(selectedGame.teamA);
+            const teamBDisplayName = getTeamDisplayName(selectedGame.teamB);
+            const { scoreA, scoreB } = calculateLiveScores(stopwatchState.currentGameId);
+            
+            // Update team names and scores
+            teamAName.textContent = teamADisplayName;
+            teamBName.textContent = teamBDisplayName;
+            teamAScore.textContent = scoreA;
+            teamBScore.textContent = scoreB;
+            
+            // Show live score display
+            liveScoreDisplay.style.display = 'block';
+        } else {
+            liveScoreDisplay.style.display = 'none';
+        }
+    } else {
+        liveScoreDisplay.style.display = 'none';
+    }
+}
+
+// Update current game info display
+function updateCurrentGameInfo() {
+    const currentGameTeams = document.getElementById('current-game-teams');
+    if (!currentGameTeams) return;
+    
+    if (stopwatchState.currentGameId) {
+        const selectedGame = miniGames.find(g => g.id === stopwatchState.currentGameId);
+        if (selectedGame && selectedGame.teamA && selectedGame.teamB) {
+            const teamAName = getTeamDisplayName(selectedGame.teamA);
+            const teamBName = getTeamDisplayName(selectedGame.teamB);
+            
+            // Check if game is completed (has duration)
+            if (selectedGame.durationSeconds) {
+                const scoreA = selectedGame.scoreA || 0;
+                const scoreB = selectedGame.scoreB || 0;
+                currentGameTeams.textContent = `${teamAName} ${scoreA}-${scoreB} ${teamBName}`;
+            } else {
+                currentGameTeams.textContent = `${teamAName} נגד ${teamBName}`;
+            }
+        } else {
+            currentGameTeams.textContent = 'משחק נבחר - הגדר קבוצות';
+        }
+    } else {
+        currentGameTeams.textContent = 'בחר משחק להתחלה';
+    }
+    
+    // Update live score display
+    updateLiveScoreDisplay();
+}
+
+// Handle start/stop button click
+function handleStartStopClick() {
+    if (!stopwatchState.currentGameId) return;
+    
+    if (!stopwatchState.isRunning) {
+        startStopwatch();
+    } else {
+        stopStopwatch();
+    }
+}
+
+// Handle pause/resume button click
+function handlePauseResumeClick() {
+    if (!stopwatchState.isRunning) return;
+    
+    if (stopwatchState.isPaused) {
+        resumeStopwatch();
+    } else {
+        pauseStopwatch();
+    }
+}
+
+// Start the stopwatch
+function startStopwatch() {
+    console.log('Starting stopwatch for game:', stopwatchState.currentGameId);
+    
+    const now = Date.now();
+    stopwatchState.startTime = now - stopwatchState.pausedTime;
+    stopwatchState.isRunning = true;
+    stopwatchState.isPaused = false;
+    
+    // Start the timer interval
+    stopwatchState.timerInterval = setInterval(updateStopwatchDisplay, 100);
+    
+    // Update UI
+    updateStopwatchControls();
+    updateStopwatchStatus('משחק פעיל');
+    
+    // Show live goal logging interface
+    showLiveGoalLogging();
+    
+    // Show live score display
+    updateLiveScoreDisplay();
+    
+    // Add visual state class
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    if (stopwatchSection) {
+        stopwatchSection.classList.add('stopwatch-running');
+    }
+    
+    // Save start time to Firestore (optional)
+    saveStopwatchStartTime();
+}
+
+// Pause the stopwatch
+function pauseStopwatch() {
+    console.log('Pausing stopwatch');
+    
+    stopwatchState.isPaused = true;
+    stopwatchState.pausedTime = Date.now() - stopwatchState.startTime;
+    
+    // Clear timer interval
+    if (stopwatchState.timerInterval) {
+        clearInterval(stopwatchState.timerInterval);
+        stopwatchState.timerInterval = null;
+    }
+    
+    // Update UI
+    updateStopwatchControls();
+    updateStopwatchStatus('משחק מושהה');
+    
+    // Keep live score display visible during pause
+    updateLiveScoreDisplay();
+    
+    // Add visual state class
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    if (stopwatchSection) {
+        stopwatchSection.classList.remove('stopwatch-running');
+        stopwatchSection.classList.add('stopwatch-paused');
+    }
+}
+
+// Resume the stopwatch
+function resumeStopwatch() {
+    console.log('Resuming stopwatch');
+    
+    stopwatchState.isPaused = false;
+    stopwatchState.startTime = Date.now() - stopwatchState.pausedTime;
+    
+    // Start the timer interval
+    stopwatchState.timerInterval = setInterval(updateStopwatchDisplay, 100);
+    
+    // Update UI
+    updateStopwatchControls();
+    updateStopwatchStatus('משחק פעיל');
+    
+    // Keep live score display visible during resume
+    updateLiveScoreDisplay();
+    
+    // Add visual state class
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    if (stopwatchSection) {
+        stopwatchSection.classList.remove('stopwatch-paused');
+        stopwatchSection.classList.add('stopwatch-running');
+    }
+}
+
+// Stop the stopwatch
+async function stopStopwatch() {
+    console.log('Stopping stopwatch');
+    
+    // Calculate final duration
+    const finalDuration = stopwatchState.isPaused ? 
+        Math.floor(stopwatchState.pausedTime / 1000) : 
+        Math.floor((Date.now() - stopwatchState.startTime) / 1000);
+    
+    // Clear timer interval
+    if (stopwatchState.timerInterval) {
+        clearInterval(stopwatchState.timerInterval);
+        stopwatchState.timerInterval = null;
+    }
+    
+    // Update state
+    stopwatchState.isRunning = false;
+    stopwatchState.isPaused = false;
+    
+    // Update UI
+    updateStopwatchControls();
+    updateStopwatchStatus('משחק הושלם');
+    
+    // Hide live goal logging interface
+    hideLiveGoalLogging();
+    
+    // Remove visual state classes
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    if (stopwatchSection) {
+        stopwatchSection.classList.remove('stopwatch-running', 'stopwatch-paused');
+    }
+    
+    // Save final duration and goals to mini-game
+    await saveStopwatchResults(finalDuration);
+    
+    // Show completion feedback
+    showStopwatchCompletionFeedback(finalDuration);
+    
+    // Reset stopwatch and clear selection after completion
+    setTimeout(() => {
+        // Reset timer display
+        displayTime(0);
+        
+        // Update current game info to show results
+        updateCurrentGameInfo();
+        
+        // Update dropdown to disable completed game
+        updateTimerGameSelection();
+        
+        // Clear game selection
+        const timerGameSelect = document.getElementById('timer-game-select');
+        if (timerGameSelect) {
+            timerGameSelect.value = '';
+        }
+        
+        // Reset stopwatch state
+        stopwatchState.currentGameId = null;
+        stopwatchState.pausedTime = 0;
+        
+        // Update UI
+        updateCurrentGameInfo();
+        updateStopwatchStatus('בחר משחק להתחלה');
+        
+        // Disable start button
+        const startStopBtn = document.getElementById('start-stop-btn');
+        if (startStopBtn) {
+            startStopBtn.disabled = true;
+        }
+    }, 2000); // Wait 2 seconds to show completion feedback first
+}
+
+// Update stopwatch display
+function updateStopwatchDisplay() {
+    if (!stopwatchState.isRunning || stopwatchState.isPaused) {
+        return;
+    }
+    
+    const elapsed = Math.floor((Date.now() - stopwatchState.startTime) / 1000);
+    displayTime(elapsed);
+}
+
+// Display time in MM:SS format
+function displayTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    
+    const timeDisplay = document.getElementById('time-display');
+    if (timeDisplay) {
+        timeDisplay.textContent = timeString;
+    }
+}
+
+// Update stopwatch controls
+function updateStopwatchControls() {
+    const startStopBtn = document.getElementById('start-stop-btn');
+    const pauseResumeBtn = document.getElementById('pause-resume-btn');
+    
+    if (startStopBtn) {
+        if (stopwatchState.isRunning) {
+            startStopBtn.innerHTML = '<span class="btn-icon">⏹️</span><span class="btn-text">סיים משחק</span>';
+            startStopBtn.classList.add('stop-mode');
+        } else {
+            startStopBtn.innerHTML = '<span class="btn-icon">▶️</span><span class="btn-text">התחל משחק</span>';
+            startStopBtn.classList.remove('stop-mode');
+        }
+    }
+    
+    if (pauseResumeBtn) {
+        if (stopwatchState.isRunning) {
+            pauseResumeBtn.classList.remove('hidden');
+            if (stopwatchState.isPaused) {
+                pauseResumeBtn.innerHTML = '<span class="btn-icon">▶️</span><span class="btn-text">המשך</span>';
+                pauseResumeBtn.classList.add('resume-mode');
+            } else {
+                pauseResumeBtn.innerHTML = '<span class="btn-icon">⏸️</span><span class="btn-text">השהה</span>';
+                pauseResumeBtn.classList.remove('resume-mode');
+            }
+        } else {
+            pauseResumeBtn.classList.add('hidden');
+        }
+    }
+}
+
+// Update stopwatch status text
+function updateStopwatchStatus(status) {
+    const stopwatchStatus = document.getElementById('stopwatch-status');
+    if (stopwatchStatus) {
+        stopwatchStatus.textContent = status;
+    }
+}
+
+// Show live goal logging interface
+function showLiveGoalLogging() {
+    const liveGoalLogging = document.getElementById('live-goal-logging');
+    if (liveGoalLogging) {
+        liveGoalLogging.classList.remove('hidden');
+    }
+}
+
+// Hide live goal logging interface
+function hideLiveGoalLogging() {
+    const liveGoalLogging = document.getElementById('live-goal-logging');
+    if (liveGoalLogging) {
+        liveGoalLogging.classList.add('hidden');
+    }
+}
+
+// Show goal logging modal
+function showGoalLoggingModal() {
+    if (!stopwatchState.currentGameId || !stopwatchState.isRunning) return;
+    
+    const selectedGame = miniGames.find(g => g.id === stopwatchState.currentGameId);
+    if (!selectedGame || !selectedGame.teamA || !selectedGame.teamB) {
+        alert('יש להגדיר קבוצות למשחק לפני רישום שערים');
+        return;
+    }
+    
+    // Create modal HTML
+    const modalHTML = `
+        <div class="goal-logging-modal" id="goal-logging-modal">
+            <div class="goal-logging-modal-content">
+                <h3>⚽ רישום שער</h3>
+                <div class="goal-form">
+                    <div class="form-group">
+                        <label for="goal-team-select">קבוצה מבקיעה:</label>
+                        <select id="goal-team-select">
+                            <option value="">-- בחר קבוצה --</option>
+                            <option value="${selectedGame.teamA}">${getTeamDisplayName(selectedGame.teamA)}</option>
+                            <option value="${selectedGame.teamB}">${getTeamDisplayName(selectedGame.teamB)}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="goal-scorer-select">מבקיע:</label>
+                        <select id="goal-scorer-select" disabled>
+                            <option value="">-- בחר מבקיע --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="goal-assister-select">מבשל (אופציונלי):</label>
+                        <select id="goal-assister-select" disabled>
+                            <option value="">-- בחר מבשל --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="goal-form-actions">
+                    <button class="goal-form-cancel" onclick="closeGoalLoggingModal()">ביטול</button>
+                    <button class="goal-form-save" onclick="saveGoalFromModal()">שמור שער</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    const teamSelect = document.getElementById('goal-team-select');
+    const scorerSelect = document.getElementById('goal-scorer-select');
+    const assisterSelect = document.getElementById('goal-assister-select');
+    
+    teamSelect.addEventListener('change', () => {
+        const selectedTeam = teamSelect.value;
+        if (selectedTeam) {
+            populatePlayerSelects(selectedTeam, scorerSelect, assisterSelect);
+        } else {
+            scorerSelect.disabled = true;
+            assisterSelect.disabled = true;
+            scorerSelect.innerHTML = '<option value="">-- בחר מבקיע --</option>';
+            assisterSelect.innerHTML = '<option value="">-- בחר מבשל --</option>';
+        }
+    });
+}
+
+// Populate player selects based on team
+function populatePlayerSelects(teamLetter, scorerSelect, assisterSelect) {
+    const teamPlayers = teams[teamLetter] || [];
+    
+    // Clear existing options
+    scorerSelect.innerHTML = '<option value="">-- בחר מבקיע --</option>';
+    assisterSelect.innerHTML = '<option value="">-- בחר מבשל --</option>';
+    
+    // Add player options
+    teamPlayers.forEach(playerId => {
+        const player = allPlayers.find(p => p.id === playerId);
+        if (player) {
+            const scorerOption = document.createElement('option');
+            scorerOption.value = playerId;
+            scorerOption.textContent = player.name;
+            scorerSelect.appendChild(scorerOption);
+            
+            const assisterOption = document.createElement('option');
+            assisterOption.value = playerId;
+            assisterOption.textContent = player.name;
+            assisterSelect.appendChild(assisterOption);
+        }
+    });
+    
+    // Enable selects
+    scorerSelect.disabled = false;
+    assisterSelect.disabled = false;
+}
+
+// Close goal logging modal
+function closeGoalLoggingModal() {
+    const modal = document.getElementById('goal-logging-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Save goal from modal
+function saveGoalFromModal() {
+    const teamSelect = document.getElementById('goal-team-select');
+    const scorerSelect = document.getElementById('goal-scorer-select');
+    const assisterSelect = document.getElementById('goal-assister-select');
+    
+    const team = teamSelect.value;
+    const scorerId = scorerSelect.value;
+    const assisterId = assisterSelect.value;
+    
+    if (!team || !scorerId) {
+        alert('יש לבחור קבוצה ומבקיע');
+        return;
+    }
+    
+    // Get current time
+    const currentTime = stopwatchState.isPaused ? 
+        Math.floor(stopwatchState.pausedTime / 1000) : 
+        Math.floor((Date.now() - stopwatchState.startTime) / 1000);
+    
+    // Create goal object
+    const goal = {
+        id: `goal-${Date.now()}`,
+        time: currentTime,
+        team: team,
+        scorerId: scorerId,
+        assisterId: assisterId || null,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Add to live goals
+    stopwatchState.liveGoals.push(goal);
+    
+    // Update live goals display
+    updateLiveGoalsDisplay();
+    
+    // Close modal
+    closeGoalLoggingModal();
+    
+    // Show feedback
+    const scorerName = allPlayers.find(p => p.id === scorerId)?.name || 'לא ידוע';
+    const timeString = `${Math.floor(currentTime / 60)}:${(currentTime % 60).toString().padStart(2, '0')}`;
+    showToast(`שער נרשם: ${scorerName} (${timeString})`, 'success');
+}
+
+// Update live goals display
+function updateLiveGoalsDisplay() {
+    const liveGoalsList = document.getElementById('live-goals-list');
+    if (!liveGoalsList) return;
+    
+    liveGoalsList.innerHTML = '';
+    
+    stopwatchState.liveGoals.forEach(goal => {
+        const goalElement = document.createElement('div');
+        goalElement.className = 'live-goal-item';
+        goalElement.dataset.goalId = goal.id;
+        
+        const scorer = allPlayers.find(p => p.id === goal.scorerId);
+        const assister = goal.assisterId ? allPlayers.find(p => p.id === goal.assisterId) : null;
+        const timeString = `${Math.floor(goal.time / 60)}:${(goal.time % 60).toString().padStart(2, '0')}`;
+        
+        let goalText = scorer ? scorer.name : 'לא ידוע';
+        if (assister) {
+            goalText += ` (בישול: ${assister.name})`;
+        }
+        
+        goalElement.innerHTML = `
+            <div class="goal-info">
+                <div class="goal-time">${timeString}</div>
+                <div class="goal-details">${goalText}</div>
+            </div>
+            <button class="remove-goal-btn" onclick="removeLiveGoal('${goal.id}')">הסר</button>
+        `;
+        
+        liveGoalsList.appendChild(goalElement);
+    });
+    
+    // Update live score display whenever goals change
+    updateLiveScoreDisplay();
+}
+
+// Remove live goal
+function removeLiveGoal(goalId) {
+    stopwatchState.liveGoals = stopwatchState.liveGoals.filter(g => g.id !== goalId);
+    updateLiveGoalsDisplay();
+    updateLiveScoreDisplay();
+}
+
+// Load existing live goals for a game
+function loadLiveGoalsForGame(gameId) {
+    const selectedGame = miniGames.find(g => g.id === gameId);
+    if (selectedGame && selectedGame.liveGoals) {
+        stopwatchState.liveGoals = [...selectedGame.liveGoals];
+        updateLiveGoalsDisplay();
+    } else {
+        stopwatchState.liveGoals = [];
+        updateLiveGoalsDisplay();
+    }
+    updateLiveScoreDisplay();
+}
+
+// Save stopwatch start time to Firestore (optional)
+async function saveStopwatchStartTime() {
+    if (DEMO_MODE || !stopwatchState.currentGameId) return;
+    
+    try {
+        const selectedGame = miniGames.find(g => g.id === stopwatchState.currentGameId);
+        if (selectedGame) {
+            selectedGame.startTime = new Date().toISOString();
+            
+            // Auto-save if in live mode
+            if (window.currentLiveGame) {
+                await autoSaveLiveGame();
+            }
+        }
+    } catch (error) {
+        console.error('Error saving stopwatch start time:', error);
+    }
+}
+
+// Save stopwatch results to mini-game
+async function saveStopwatchResults(durationSeconds) {
+    if (!stopwatchState.currentGameId) return;
+    
+    try {
+        const selectedGame = miniGames.find(g => g.id === stopwatchState.currentGameId);
+        if (selectedGame) {
+            // Save duration
+            selectedGame.durationSeconds = durationSeconds;
+            
+            // Save live goals
+            selectedGame.liveGoals = [...stopwatchState.liveGoals];
+            
+            // Process live goals into scorers format
+            if (stopwatchState.liveGoals.length > 0) {
+                processLiveGoalsIntoScorers(selectedGame);
+            }
+            
+            // Auto-save if in live mode
+            if (window.currentLiveGame) {
+                await autoSaveLiveGame();
+            }
+            
+            console.log(`Saved stopwatch results for game ${stopwatchState.currentGameId}: ${durationSeconds} seconds, ${stopwatchState.liveGoals.length} goals`);
+        }
+    } catch (error) {
+        console.error('Error saving stopwatch results:', error);
+    }
+}
+
+// Process live goals into existing scorers format
+function processLiveGoalsIntoScorers(game) {
+    if (!game.scorers) {
+        game.scorers = [];
+    }
+    
+    // Process each live goal
+    stopwatchState.liveGoals.forEach(goal => {
+        // Find or create scorer entry
+        let scorerEntry = game.scorers.find(s => s.playerId === goal.scorerId);
+        if (!scorerEntry) {
+            scorerEntry = {
+                playerId: goal.scorerId,
+                goals: 0,
+                assists: 0
+            };
+            game.scorers.push(scorerEntry);
+        }
+        
+        // Increment goals
+        scorerEntry.goals++;
+        
+        // Handle assist
+        if (goal.assisterId) {
+            let assisterEntry = game.scorers.find(s => s.playerId === goal.assisterId);
+            if (!assisterEntry) {
+                assisterEntry = {
+                    playerId: goal.assisterId,
+                    goals: 0,
+                    assists: 0
+                };
+                game.scorers.push(assisterEntry);
+            }
+            assisterEntry.assists++;
+        }
+    });
+    
+    // Update game scores based on live goals
+    updateGameScoresFromLiveGoals(game);
+    
+    // Recalculate player stats
+    recalculatePlayerStats();
+    updateStatsDisplay();
+}
+
+// Update game scores based on live goals
+function updateGameScoresFromLiveGoals(game) {
+    let scoreA = 0;
+    let scoreB = 0;
+    
+    stopwatchState.liveGoals.forEach(goal => {
+        if (goal.team === game.teamA) {
+            scoreA++;
+        } else if (goal.team === game.teamB) {
+            scoreB++;
+        }
+    });
+    
+    game.scoreA = scoreA;
+    game.scoreB = scoreB;
+    
+    // Update winner
+    if (scoreA > scoreB) {
+        game.winner = game.teamA;
+    } else if (scoreB > scoreA) {
+        game.winner = game.teamB;
+    } else {
+        game.winner = null; // tie
+    }
+    
+    // Update the mini-game display
+    renderAllMiniGames();
+}
+
+// Show stopwatch completion feedback
+function showStopwatchCompletionFeedback(durationSeconds) {
+    const minutes = Math.floor(durationSeconds / 60);
+    const seconds = durationSeconds % 60;
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    showToast(`משחק הושלם! משך זמן: ${timeString}`, 'success');
+    
+    // Update game selection dropdown to reflect completion
+    updateTimerGameSelection();
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    
+    // Add to toast container
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'toast-container';
+        document.body.appendChild(toastContainer);
+    }
+    
+    toastContainer.appendChild(toast);
+    
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 3000);
+}
+
+// Clean up stopwatch when leaving step 4
+function cleanupStopwatch() {
+    if (stopwatchState.timerInterval) {
+        clearInterval(stopwatchState.timerInterval);
+    }
+    
+    // Close any open modals
+    closeGoalLoggingModal();
+    
+    // Reset state
+    resetStopwatchState();
+    
+    console.log('Stopwatch cleaned up');
 }
 
 // Make functions available globally
@@ -6934,6 +8056,9 @@ let adminManagementAllAdmins = [];
 let currentUserEmail = '';
 let currentUserRole = '';
 
+// Make current user role available globally
+window.currentUserRole = currentUserRole;
+
 // Cache management
 let gamesCache = {
     data: null,
@@ -7275,6 +8400,153 @@ function isValidEmail(email) {
 // Global function exposure for admin management
 window.removeAdmin = removeAdmin;
 
+// Custom Alert and Confirm Functions
+function showCustomAlert(message, type = 'info') {
+    return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.className = 'custom-alert-modal';
+        
+        const iconMap = {
+            'info': '💡',
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️'
+        };
+        
+        const colorMap = {
+            'info': '#3498db',
+            'success': '#28a745',
+            'error': '#dc3545',
+            'warning': '#ffc107'
+        };
+        
+        modal.innerHTML = `
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header" style="border-bottom: 3px solid ${colorMap[type]};">
+                    <h3 style="color: ${colorMap[type]}; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2em;">${iconMap[type]}</span>
+                        הודעה
+                    </h3>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size: 1.1em; line-height: 1.6; margin: 0; text-align: center;">${message}</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="primary-btn ok-btn">אישור</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        const okBtn = modal.querySelector('.ok-btn');
+        const backdrop = modal.querySelector('.modal-backdrop');
+        
+        const cleanup = () => {
+            document.body.removeChild(modal);
+            resolve();
+        };
+        
+        okBtn.addEventListener('click', cleanup);
+        backdrop.addEventListener('click', cleanup);
+        
+        // Add escape key support
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+                document.removeEventListener('keydown', handleKeydown);
+            }
+        };
+        document.addEventListener('keydown', handleKeydown);
+    });
+}
+
+function showCustomConfirm(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = 'אישור פעולה',
+            confirmText = 'אישור',
+            cancelText = 'ביטול',
+            type = 'warning',
+            danger = false
+        } = options;
+        
+        const modal = document.createElement('div');
+        modal.className = 'custom-confirm-modal';
+        
+        const iconMap = {
+            'info': '💡',
+            'success': '✅',
+            'error': '❌',
+            'warning': '⚠️',
+            'question': '❓'
+        };
+        
+        const colorMap = {
+            'info': '#3498db',
+            'success': '#28a745',
+            'error': '#dc3545',
+            'warning': '#ffc107',
+            'question': '#6c757d'
+        };
+        
+        modal.innerHTML = `
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header" style="border-bottom: 3px solid ${colorMap[type]};">
+                    <h3 style="color: ${colorMap[type]}; display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2em;">${iconMap[type]}</span>
+                        ${title}
+                    </h3>
+                </div>
+                <div class="modal-body">
+                    <p style="font-size: 1.1em; line-height: 1.6; margin: 0; text-align: center; white-space: pre-line;">${message}</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="secondary-btn cancel-btn">${cancelText}</button>
+                    <button class="primary-btn confirm-btn ${danger ? 'danger-btn' : ''}">${confirmText}</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        const confirmBtn = modal.querySelector('.confirm-btn');
+        const cancelBtn = modal.querySelector('.cancel-btn');
+        const backdrop = modal.querySelector('.modal-backdrop');
+        
+        const cleanup = () => {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleKeydown);
+        };
+        
+        const handleConfirm = () => {
+            cleanup();
+            resolve(true);
+        };
+        
+        const handleCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+        
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
+        backdrop.addEventListener('click', handleCancel);
+        
+        // Add keyboard support
+        const handleKeydown = (e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            } else if (e.key === 'Enter') {
+                handleConfirm();
+            }
+        };
+        document.addEventListener('keydown', handleKeydown);
+    });
+}
+
 // Toast notification functions
 function showToast(title, message, type = 'success', duration = 4000) {
     const container = document.getElementById('toast-container');
@@ -7338,6 +8610,39 @@ function showErrorToast(title, message) {
 window.removeToast = removeToast;
 
 // Add retroactive fields to existing players and normalize field names
+// Check for edit parameter in URL
+function checkForEditParameter() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const editGameId = urlParams.get('edit');
+    
+    if (editGameId) {
+        console.log('Edit parameter found in URL:', editGameId);
+        
+        // Clear the URL parameter
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // Wait for authentication and then edit the game
+        if (window.currentUser) {
+            // User is already authenticated, edit immediately
+            editGameDay(editGameId);
+        } else {
+            // Wait for authentication
+            const authCheckInterval = setInterval(() => {
+                if (window.currentUser) {
+                    clearInterval(authCheckInterval);
+                    editGameDay(editGameId);
+                }
+            }, 500);
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                clearInterval(authCheckInterval);
+                console.log('Authentication timeout for edit parameter');
+            }, 10000);
+        }
+    }
+}
+
 async function addRetroactiveFieldsToPlayers() {
     try {
         console.log('Adding retroactive fields and normalizing field names for all players...');

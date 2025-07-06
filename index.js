@@ -495,6 +495,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="game-night-tab" onclick="switchTab('${gameDay.id}', 'summary')">
                         סיכום ערב
                     </button>
+                    ${(statusNum === 3 && window.currentUserRole !== 'super-admin') ? 
+                        // Completed games - only super-admin can edit
+                        '' :
+                        // All other statuses or super-admin
+                        `<button class="game-night-edit-btn" onclick="editGameNightFromDashboard('${gameDay.id}')">
+                            ✏️ ערוך
+                        </button>`
+                    }
                 </div>
                 
                 <div id="games-${gameDay.id}" class="tab-content active">
@@ -798,6 +806,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (miniGameItem) {
             miniGameItem.classList.toggle('expanded');
         }
+    };
+
+    // Global function for editing game night from dashboard
+    window.editGameNightFromDashboard = function(gameId) {
+        // Redirect to admin panel with edit mode
+        window.location.href = `admin.html?edit=${gameId}`;
     };
 
     function renderGameNightSummary(gameDay) {

@@ -673,6 +673,85 @@ button[type="submit"]:disabled {
     .page-container > *:last-child {
         margin-bottom: 0;
     }
+
+    /* Admin back button mobile fix */
+    .admin-back-btn {
+        position: relative;
+        transform: none;
+        left: auto;
+        top: auto;
+        margin-bottom: 15px;
+        display: block;
+        width: fit-content;
+    }
+
+    /* Team select dropdown mobile fix */
+    .team-select {
+        font-size: 16px;
+        min-height: 44px;
+        width: 100%;
+        max-width: 200px;
+        box-sizing: border-box;
+        text-align: right;
+        direction: rtl;
+        border: 2px solid #bdc3c7;
+        border-radius: 8px;
+        background-color: white;
+        padding: 12px 16px;
+        /* Force native dropdown behavior on mobile */
+        -webkit-appearance: menulist;
+        -moz-appearance: menulist;
+        appearance: menulist;
+        /* Ensure proper positioning */
+        position: relative;
+        z-index: 10;
+        /* Prevent overflow issues */
+        overflow: visible;
+    }
+
+    .team-selection {
+        position: relative;
+        width: 100%;
+        max-width: 200px;
+        margin: 0 auto;
+        /* Ensure container doesn't clip dropdown */
+        overflow: visible;
+        z-index: 10;
+    }
+
+    .game-setup {
+        align-items: center;
+        gap: 15px;
+        /* Ensure game setup doesn't clip dropdowns */
+        overflow: visible;
+    }
+
+    .mini-game {
+        /* Ensure mini-game container doesn't clip dropdowns */
+        overflow: visible;
+    }
+
+    .game-content {
+        /* Ensure game content doesn't clip dropdowns */
+        overflow: visible;
+    }
+
+    /* Fix dropdown positioning by removing problematic overflow properties */
+    .page-container {
+        overflow-x: visible !important;
+    }
+
+    .table-container {
+        overflow-x: visible !important;
+    }
+
+    .admin-tab-content {
+        overflow: visible !important;
+    }
+
+    .tab-panel {
+        overflow: visible !important;
+    }
 }
 
 /* Extra small screens */
@@ -1432,8 +1511,9 @@ body:has(.admin-section) .auth-container {
 .mini-game-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 20px;
+    gap: 15px;
 }
 
 .mini-game-header h4 {
@@ -1443,8 +1523,10 @@ body:has(.admin-section) .auth-container {
 
 .game-header-left {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
+    flex: 1;
+    min-width: 0;
 }
 
 .collapse-btn {
@@ -1473,13 +1555,167 @@ body:has(.admin-section) .auth-container {
 }
 
 .game-summary {
-    font-size: 0.9em;
-    color: #6c757d;
-    font-weight: 500;
-    background-color: #f8f9fa;
-    padding: 4px 8px;
-    border-radius: 4px;
     margin-left: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.game-score-layout {
+    background-color: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+}
+
+.score-line {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.team-score-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.team-name {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 3px;
+    line-height: 1.2;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.team-scorers {
+    font-size: 0.85em;
+    color: #666;
+    line-height: 1.3;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.score-center {
+    font-weight: 700;
+    color: #e74c3c;
+    font-size: 1.2em;
+    padding: 0 6px;
+    align-self: flex-start;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .mini-game-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .game-header-left {
+        align-items: center;
+    }
+    
+    .game-summary {
+        margin-left: 0;
+        margin-top: 8px;
+        width: 100%;
+    }
+    
+    .game-score-layout {
+        padding: 6px 8px;
+        font-size: 0.8em;
+    }
+    
+    .score-line {
+        gap: 6px;
+    }
+    
+    .team-name {
+        font-size: 0.9em;
+        margin-bottom: 2px;
+    }
+    
+    .team-scorers {
+        font-size: 0.75em;
+    }
+    
+    .score-center {
+        font-size: 1em;
+        padding: 0 4px;
+    }
+    
+    .game-header-right {
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .mini-game-header {
+        padding: 12px 15px;
+    }
+    
+    .game-header-left {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .game-header-left h4 {
+        font-size: 0.95em;
+    }
+    
+    .live-recorded-indicator {
+        font-size: 0.7em;
+        padding: 1px 4px;
+    }
+    
+    .game-summary {
+        width: 100%;
+        margin: 0;
+        order: 3;
+        flex-basis: 100%;
+    }
+    
+    .game-score-layout {
+        padding: 4px 6px;
+        font-size: 0.7em;
+    }
+    
+    .score-line {
+        gap: 3px;
+    }
+    
+    .team-name {
+        font-size: 0.85em;
+        margin-bottom: 1px;
+    }
+    
+    .team-scorers {
+        font-size: 0.7em;
+        line-height: 1.2;
+    }
+    
+    .score-center {
+        font-size: 0.9em;
+        padding: 0 2px;
+    }
+    
+    .game-header-right {
+        gap: 5px;
+    }
+    
+    .game-lock-btn {
+        min-width: 30px;
+        height: 28px;
+        padding: 4px 6px;
+    }
+    
+    .remove-game-btn {
+        padding: 4px 8px;
+        font-size: 0.8em;
+    }
 }
 
 .game-content {
@@ -1616,6 +1852,172 @@ body:has(.admin-section) .auth-container {
     border: 1px solid #bdc3c7;
     border-radius: 4px;
     text-align: center;
+}
+
+/* Game lock functionality */
+.game-header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.game-lock-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 32px;
+}
+
+.game-lock-btn:hover {
+    background-color: #f8f9fa;
+}
+
+.game-lock-btn.locked {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+}
+
+.game-lock-btn.locked:hover {
+    background-color: #ffeaa7;
+}
+
+.game-lock-btn.unlocked {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+}
+
+.game-lock-btn.unlocked:hover {
+    background-color: #c3e6cb;
+}
+
+.lock-icon {
+    font-size: 14px;
+}
+
+.live-recorded-indicator {
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    margin-left: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.locked-content {
+    position: relative;
+}
+
+.locked-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 243, 205, 0.1);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 8px;
+}
+
+.locked-content select:disabled,
+.locked-content input[readonly] {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+    border-color: #dee2e6 !important;
+}
+
+.locked-content .goals-input[readonly],
+.locked-content .assists-input[readonly] {
+    background-color: #f8f9fa !important;
+    color: #6c757d !important;
+    cursor: not-allowed !important;
+    border-color: #dee2e6 !important;
+}
+
+.live-game-info {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+}
+
+.live-game-duration {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.duration-label {
+    font-weight: 600;
+    color: var(--dark-blue);
+}
+
+.duration-value {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: #e74c3c;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.lock-message {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 10px;
+}
+
+.lock-message-text {
+    font-size: 0.9em;
+    color: #856404;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+@media (max-width: 768px) {
+    .game-header-right {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .game-lock-btn {
+        min-width: 32px;
+        height: 28px;
+        padding: 4px 6px;
+    }
+    
+    .live-recorded-indicator {
+        font-size: 0.7em;
+        padding: 1px 4px;
+        margin-left: 4px;
+    }
+    
+    .live-game-duration {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+    
+    .lock-message-text {
+        font-size: 0.8em;
+    }
 }
 
 /* Stats Summary */
@@ -2377,17 +2779,7 @@ body:has(.admin-section) .auth-container {
     color: white;
 }
 
-/* Temporarily hide admin management tab until role is properly set */
-button.admin-tab[data-tab="admin-management"] {
-    display: none !important;
-    visibility: hidden !important;
-}
-
-/* Also hide the admin management tab panel */
-#admin-management-tab {
-    display: none !important;
-    visibility: hidden !important;
-}
+/* Admin management tab visibility is now controlled by JavaScript based on user role */
 
 .history-item-details {
     display: flex;
@@ -2850,6 +3242,28 @@ button.admin-tab[data-tab="admin-management"] {
     background: #f8f9fa;
 }
 
+.game-night-edit-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.game-night-edit-btn:hover {
+    background: #0056b3;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+}
+
 .tab-content {
     display: none;
 }
@@ -3237,19 +3651,27 @@ button.admin-tab[data-tab="admin-management"] {
         line-height: 1.2;
     }
     
-    .game-night-card {
+        .game-night-card {
         margin: 8px 0;
         padding: 12px;
     }
-    
+
     .game-night-info {
         gap: 8px;
         flex-direction: column;
     }
-    
+
     .info-item {
         font-size: 0.8em;
         padding: 2px 0;
+    }
+
+    .game-night-edit-btn {
+        font-size: 0.8em;
+        padding: 6px 12px;
+        margin-top: 8px;
+        width: 100%;
+        justify-content: center;
     }
     
     .team-rosters {
@@ -6201,5 +6623,566 @@ button:disabled:hover {
     
     .add-admin-form {
         gap: 15px;
+    }
+}
+
+/* =================================
+   Live Mini-Game Stopwatch Styles
+   ================================= */
+
+.live-stopwatch-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 30px;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.live-stopwatch-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(255,255,255,0.1) 100%);
+    pointer-events: none;
+}
+
+.stopwatch-container {
+    position: relative;
+    z-index: 1;
+}
+
+.stopwatch-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.stopwatch-header h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.4em;
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.current-game-info {
+    background: rgba(255,255,255,0.2);
+    padding: 8px 16px;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.live-score-display {
+    margin-top: 15px;
+    padding: 12px 20px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 20px;
+    backdrop-filter: blur(15px);
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.live-score-teams {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-weight: 700;
+}
+
+.team-score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    min-width: 100px;
+}
+
+.team-name {
+    font-size: 0.9em;
+    opacity: 0.9;
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
+}
+
+.team-score-value {
+    font-size: 2.5em;
+    font-weight: 900;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    color: #fff;
+}
+
+.score-separator {
+    font-size: 2em;
+    font-weight: 900;
+    opacity: 0.8;
+    margin: 0 10px;
+}
+
+.stopwatch-display {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.time-display {
+    font-size: 4em;
+    font-weight: 900;
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+}
+
+.stopwatch-status {
+    font-size: 1.1em;
+    font-weight: 500;
+    opacity: 0.9;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.stopwatch-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.stopwatch-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 30px;
+    border: none;
+    border-radius: 15px;
+    font-size: 1.1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 160px;
+    min-height: 60px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.primary-stopwatch-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.primary-stopwatch-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+}
+
+.primary-stopwatch-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+.primary-stopwatch-btn.stop-mode {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
+.primary-stopwatch-btn.stop-mode:hover {
+    background: linear-gradient(135deg, #c82333, #bd2130);
+    box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+}
+
+.secondary-stopwatch-btn {
+    background: linear-gradient(135deg, #ffc107, #fd7e14);
+    color: #212529;
+}
+
+.secondary-stopwatch-btn:hover {
+    background: linear-gradient(135deg, #e0a800, #e8590c);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4);
+}
+
+.secondary-stopwatch-btn.resume-mode {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+}
+
+.secondary-stopwatch-btn.resume-mode:hover {
+    background: linear-gradient(135deg, #138496, #117a8b);
+    box-shadow: 0 6px 20px rgba(23, 162, 184, 0.4);
+}
+
+.btn-icon {
+    font-size: 1.2em;
+}
+
+.btn-text {
+    font-weight: 700;
+}
+
+.game-selection-for-timer {
+    background: rgba(255,255,255,0.15);
+    padding: 15px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    margin-bottom: 20px;
+}
+
+.game-selection-for-timer label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.95em;
+}
+
+.timer-game-select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.9);
+    color: #333;
+    font-size: 1em;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.timer-game-select:focus {
+    outline: none;
+    border-color: rgba(255,255,255,0.8);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.2);
+}
+
+.live-goal-logging {
+    background: rgba(255,255,255,0.15);
+    padding: 20px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    margin-top: 20px;
+}
+
+.goal-logging-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.goal-logging-header h4 {
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.add-goal-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 44px;
+}
+
+.add-goal-btn:hover {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-1px);
+}
+
+.live-goals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.live-goal-item {
+    background: rgba(255,255,255,0.2);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.goal-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.goal-time {
+    font-size: 0.8em;
+    opacity: 0.8;
+    font-weight: 500;
+}
+
+.goal-details {
+    font-size: 0.9em;
+    font-weight: 600;
+}
+
+.remove-goal-btn {
+    background: rgba(220, 53, 69, 0.8);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.remove-goal-btn:hover {
+    background: rgba(220, 53, 69, 1);
+    transform: scale(1.05);
+}
+
+/* Mobile Responsive for Stopwatch */
+@media (max-width: 768px) {
+    .live-stopwatch-section {
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 15px;
+    }
+    
+    .stopwatch-header h3 {
+        font-size: 1.2em;
+    }
+    
+    .time-display {
+        font-size: 3em;
+    }
+    
+    .stopwatch-controls {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .stopwatch-btn {
+        width: 100%;
+        min-width: unset;
+        padding: 16px 24px;
+        font-size: 1em;
+        min-height: 56px;
+    }
+    
+    .goal-logging-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+    
+    .add-goal-btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .live-goal-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .remove-goal-btn {
+        align-self: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .live-stopwatch-section {
+        padding: 15px;
+    }
+    
+    .time-display {
+        font-size: 2.5em;
+    }
+    
+    .stopwatch-btn {
+        padding: 14px 20px;
+        font-size: 0.9em;
+        min-height: 50px;
+    }
+    
+    .btn-icon {
+        font-size: 1em;
+    }
+    
+    .current-game-info {
+        padding: 6px 12px;
+        font-size: 0.8em;
+    }
+
+    .live-score-display {
+        margin-top: 12px;
+        padding: 10px 16px;
+    }
+
+    .live-score-teams {
+        gap: 15px;
+    }
+
+    .team-score {
+        min-width: 80px;
+        gap: 6px;
+    }
+
+    .team-name {
+        font-size: 0.8em;
+    }
+
+    .team-score-value {
+        font-size: 2em;
+    }
+
+    .score-separator {
+        font-size: 1.5em;
+        margin: 0 8px;
+    }
+}
+
+/* Stopwatch Animation States */
+.stopwatch-running .time-display {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+.stopwatch-paused .time-display {
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.7; }
+}
+
+/* Goal Logging Modal Styles */
+.goal-logging-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+}
+
+.goal-logging-modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.goal-logging-modal h3 {
+    margin: 0 0 20px 0;
+    color: var(--dark-blue);
+    text-align: center;
+}
+
+.goal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.goal-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.goal-form label {
+    font-weight: 600;
+    color: #333;
+}
+
+.goal-form select {
+    padding: 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 16px;
+    background: white;
+}
+
+.goal-form select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.goal-form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.goal-form-actions button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 100px;
+}
+
+.goal-form-cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.goal-form-cancel:hover {
+    background: #5a6268;
+}
+
+.goal-form-save {
+    background: var(--primary-blue);
+    color: white;
+}
+
+.goal-form-save:hover {
+    background: var(--dark-blue);
+}
+
+@media (max-width: 480px) {
+    .goal-logging-modal-content {
+        padding: 20px;
+        width: 95%;
+    }
+    
+    .goal-form-actions {
+        flex-direction: column;
+    }
+    
+    .goal-form-actions button {
+        width: 100%;
     }
 }

@@ -199,7 +199,7 @@
                             
                             <!-- Past Games Section -->
                             <div id="mgmt-past-games-section" class="mgmt-games-section">
-                                <h3>⚫ משחקים קודמים</h3>
+                                <h3>⚫ ערבי משחק קודמים</h3>
                                 <div id="mgmt-past-games-list" class="games-list">
                                     <!-- Past games will be loaded here -->
                                 </div>
@@ -262,6 +262,68 @@
                     <!-- Step 4: Mini-Games Results -->
                     <div id="step-4" class="admin-step hidden">
                         <h2>תוצאות משחקים קטנים</h2>
+                        
+                        <!-- Live Mini-Game Stopwatch Section -->
+                        <div id="live-stopwatch-section" class="live-stopwatch-section">
+                            <div class="stopwatch-container">
+                                <div class="stopwatch-header">
+                                    <h3>⏱️ סטופר משחק חי</h3>
+                                    <div class="current-game-info" id="current-game-info">
+                                        <span id="current-game-teams">בחר משחק להתחלה</span>
+                                    </div>
+                                    <div class="live-score-display" id="live-score-display" style="display: none;">
+                                        <div class="live-score-teams">
+                                            <div class="team-score">
+                                                <span class="team-name" id="team-a-name">קבוצה א</span>
+                                                <span class="team-score-value" id="team-a-score">0</span>
+                                            </div>
+                                            <div class="score-separator">-</div>
+                                            <div class="team-score">
+                                                <span class="team-score-value" id="team-b-score">0</span>
+                                                <span class="team-name" id="team-b-name">קבוצה ב</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="stopwatch-display">
+                                    <div class="time-display" id="time-display">00:00</div>
+                                    <div class="stopwatch-status" id="stopwatch-status">מוכן להתחלה</div>
+                                </div>
+                                
+                                <div class="stopwatch-controls">
+                                    <button id="start-stop-btn" class="stopwatch-btn primary-stopwatch-btn" disabled>
+                                        <span class="btn-icon">▶️</span>
+                                        <span class="btn-text">התחל משחק</span>
+                                    </button>
+                                    <button id="pause-resume-btn" class="stopwatch-btn secondary-stopwatch-btn hidden">
+                                        <span class="btn-icon">⏸️</span>
+                                        <span class="btn-text">השהה</span>
+                                    </button>
+                                </div>
+                                
+                                <!-- Live Goal Logging Interface -->
+                                <div id="live-goal-logging" class="live-goal-logging hidden">
+                                    <div class="goal-logging-header">
+                                        <h4>⚽ רישום שערים בזמן אמת</h4>
+                                        <button id="add-goal-btn" class="add-goal-btn">+ שער</button>
+                                    </div>
+                                    
+                                    <div id="live-goals-list" class="live-goals-list">
+                                        <!-- Live goals will appear here -->
+                                    </div>
+                                </div>
+                                
+                                <!-- Game Selection for Stopwatch -->
+                                <div class="game-selection-for-timer">
+                                    <label for="timer-game-select">בחר משחק לסטופר:</label>
+                                    <select id="timer-game-select" class="timer-game-select">
+                                        <option value="">-- בחר משחק --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <div class="mini-games-container">
                             <div class="add-game-section">
                                 <button id="add-mini-game-btn" class="secondary-btn">הוסף משחק</button>
