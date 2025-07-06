@@ -3760,21 +3760,32 @@ function goToStep(stepNumber) {
         const addGameBtn = document.getElementById('add-mini-game-btn');
         const finalizeBtn = document.getElementById('finalize-gameday-btn');
         const liveControls = document.querySelector('.live-game-controls');
+        const stopwatchSection = document.getElementById('live-stopwatch-section');
         
         if (isViewOnlyMode) {
             // Hide action buttons in view-only mode
             if (addGameBtn) addGameBtn.style.display = 'none';
             if (finalizeBtn) finalizeBtn.style.display = 'none';
             if (liveControls) liveControls.style.display = 'none';
+            if (stopwatchSection) stopwatchSection.style.display = 'none';
+        } else if (isEditMode && currentGameDay && currentGameDay.status === 3) {
+            // In edit mode for completed games, hide stopwatch but show other controls
+            if (addGameBtn) addGameBtn.style.display = 'block';
+            if (finalizeBtn) finalizeBtn.style.display = 'none'; // Hide finalize for completed games
+            if (liveControls) liveControls.style.display = 'block';
+            if (stopwatchSection) stopwatchSection.style.display = 'none'; // Hide stopwatch for completed games
         } else {
-            // Show action buttons in edit/live mode
+            // Show all controls for live/new games
             if (addGameBtn) addGameBtn.style.display = 'block';
             if (finalizeBtn) finalizeBtn.style.display = 'block';
             if (liveControls) liveControls.style.display = 'block';
+            if (stopwatchSection) stopwatchSection.style.display = 'block';
         }
         
-        // Initialize stopwatch system for real-time game management
-        initializeStopwatch();
+        // Only initialize stopwatch for live/new games, not for completed games in edit mode
+        if (!isViewOnlyMode && !(isEditMode && currentGameDay && currentGameDay.status === 3)) {
+            initializeStopwatch();
+        }
         
         // Always update stats display when entering Step 4
         updateStatsDisplay();

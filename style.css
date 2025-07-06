@@ -3805,6 +3805,44 @@ body:has(.admin-section) .auth-container {
         width: 100%;
         min-width: auto;
     }
+    
+    /* Extra fixes for live score display on very small screens */
+    .live-score-teams {
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .team-score {
+        min-width: 70px;
+        max-width: 70px;
+        gap: 4px;
+    }
+    
+    .team-name {
+        font-size: 0.7em;
+        max-width: 70px;
+        line-height: 1;
+        word-break: break-all;
+        overflow-wrap: anywhere;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .team-score-value {
+        font-size: 1.8em;
+    }
+    
+    .score-separator {
+        font-size: 1.3em;
+        margin: 0 5px;
+        order: -1;
+        flex-basis: 100%;
+        text-align: center;
+    }
 }
 
 .status-label.live {
@@ -6721,7 +6759,10 @@ button:disabled:hover {
     opacity: 0.9;
     text-align: center;
     word-wrap: break-word;
+    overflow-wrap: break-word;
     line-height: 1.2;
+    max-width: 100px;
+    hyphens: auto;
 }
 
 .team-score-value {
@@ -7055,7 +7096,11 @@ button:disabled:hover {
     }
 
     .team-name {
-        font-size: 0.8em;
+        font-size: 0.75em;
+        max-width: 80px;
+        line-height: 1.1;
+        word-break: break-word;
+        overflow-wrap: anywhere;
     }
 
     .team-score-value {
