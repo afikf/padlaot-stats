@@ -1227,65 +1227,128 @@ body:has(.admin-section) .auth-container {
 
 /* Admin Header */
 .admin-header {
+    background-color: #ffffff;
+    padding: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 24px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e9ecef;
-    margin-bottom: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+    z-index: 10;
 }
 
 .admin-user-info {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 0.75rem;
+    background: #f3f4f6;  /* Light gray background */
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    min-width: 200px;
 }
 
 .user-info-top {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.5rem;
+}
+
+#user-email {
+    color: #1f2937;  /* Dark gray text */
+}
+
+.admin-badge {
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
 }
 
 .user-info-bottom {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
 }
 
-#user-email {
+.user-player-name {
+    color: #1f2937;  /* Dark gray text */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
     font-weight: 500;
-    color: #495057;
 }
 
-.admin-badge {
-    background: #007bff;
-    color: white;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
-    font-weight: 500;
+.user-player-name .player-icon {
+    color: #2563eb;
 }
 
 .logout-btn {
-    background: #dc3545;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
+    color: #dc2626;  /* Red text */
+    background: #fee2e2;  /* Light red background */
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    border: 1px solid #fecaca;
     cursor: pointer;
-    font-size: 0.9em;
+    font-weight: 500;
     transition: all 0.2s ease;
 }
 
 .logout-btn:hover {
-    background: #c82333;
-    transform: translateY(-1px);
+    background: #fecaca;
 }
 
-.logout-btn:active {
-    transform: translateY(0);
+@media (max-width: 768px) {
+    .admin-header {
+        padding: 1rem;
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .admin-user-info {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .user-info-top,
+    .user-info-bottom {
+        flex-wrap: wrap;
+    }
+
+    .user-player-name {
+        font-size: 0.85em;
+        padding: 3px 8px;
+    }
+
+    .logout-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9em;
+        min-width: 80px;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-header {
+        padding: 0.75rem;
+    }
+
+    .admin-user-info {
+        padding: 0.75rem;
+    }
+
+    #user-email {
+        font-size: 0.8em;
+    }
+
+    .admin-badge {
+        font-size: 0.75em;
+        padding: 0.2rem 0.4rem;
+    }
 }
 
 /* Progress Indicator */

@@ -1,6 +1,10 @@
-// Import Firebase functions - Updated to include onSnapshot for real-time listeners
-import { collection, doc, getDoc, updateDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// Version check
+console.log('🔄 Loading index.js version 2023.9');
+
+// Import Firebase functions
+import { collection, doc, getDoc, updateDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { authManager, AuthState } from "./auth-manager.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
@@ -495,14 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="game-night-tab" onclick="switchTab('${gameDay.id}', 'summary')">
                         סיכום ערב
                     </button>
-                    ${(statusNum === 3 && window.currentUserRole !== 'super-admin') ? 
-                        // Completed games - only super-admin can edit
-                        '' :
-                        // All other statuses or super-admin
-                        `<button class="game-night-edit-btn" onclick="editGameNightFromDashboard('${gameDay.id}')">
-                            ✏️ ערוך
-                        </button>`
-                    }
+                    <!-- Edit functionality removed from index page -->
                 </div>
                 
                 <div id="games-${gameDay.id}" class="tab-content active">
@@ -808,11 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Global function for editing game night from dashboard
-    window.editGameNightFromDashboard = function(gameId) {
-        // Redirect to admin panel with edit mode
-        window.location.href = `admin.html?edit=${gameId}`;
-    };
+    // Edit functionality removed from index page
 
     function renderGameNightSummary(gameDay) {
         const playerStats = calculateGameNightPlayerStats(gameDay);
@@ -1445,4 +1438,138 @@ document.addEventListener('DOMContentLoaded', () => {
             // Don't prevent other operations if this fails
         }
     }
+
+    // Initialize the application
+    async function initializeApp() {
+        console.log('🔄 Initializing app...');
+        
+        // Show loading state
+        const loadingOverlay = document.getElementById('loading-overlay');
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+        
+        // Set up auth state listener
+        authManager.addStateListener((state, data) => {
+            console.log('Auth state changed:', state);
+            
+            switch (state) {
+                case AuthState.INITIALIZING:
+                    if (loadingOverlay) loadingOverlay.style.display = 'flex';
+                    break;
+                    
+                case AuthState.LOGGED_OUT:
+                    window.location.href = 'login.html';
+                    break;
+                    
+                case AuthState.NEEDS_PLAYER_LINK:
+                    window.location.href = 'link-player.html';
+                    break;
+                    
+                case AuthState.READY:
+                    handleAuthReady(data);
+                    break;
+            }
+        });
+    }
+
+    // Handle authenticated and ready state
+    async function handleAuthReady(data) {
+        console.log('🔄 Handling auth ready state...');
+        
+        try {
+            // Update user info display
+            updateUserInfo(data);
+            
+            // Initialize data listeners
+            await initializeDataListeners();
+            
+            // Hide loading overlay
+            const loadingOverlay = document.getElementById('loading-overlay');
+            if (loadingOverlay) loadingOverlay.style.display = 'none';
+        } catch (error) {
+            console.error('Error handling auth ready state:', error);
+            alert('שגיאה בטעינת הנתונים. אנא רענן את הדף.');
+        }
+    }
+
+    // Update user info display
+    function updateUserInfo(data) {
+        const userInfoDiv = document.getElementById('user-info');
+        if (!userInfoDiv) return;
+        
+        const { user, userDoc } = data;
+        
+        userInfoDiv.innerHTML = `
+            <div class="user-info-content">
+                ${user.photoURL ? `<img src="${user.photoURL}" alt="${user.displayName}">` : ''}
+                <div class="user-details">
+                    <span class="user-name">${userDoc.playerName || user.displayName}</span>
+                    <span class="user-role">${userDoc.role}</span>
+                </div>
+            </div>
+            <button onclick="handleSignOut()" class="signout-button">התנתק</button>
+        `;
+    }
+
+    // Initialize data listeners
+    async function initializeDataListeners() {
+        console.log('🔄 Initializing data listeners...');
+        
+        try {
+            // Set up players listener
+            const playersRef = collection(db, 'players');
+            unsubscribePlayers = onSnapshot(playersRef, (snapshot) => {
+                allPlayers = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                playersLoaded = true;
+                checkInitialDataLoad();
+            });
+            
+            // Set up game days listener
+            const gameDaysRef = collection(db, 'gameDays');
+            unsubscribeGameDays = onSnapshot(gameDaysRef, (snapshot) => {
+                allGameDays = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                gameDaysLoaded = true;
+                checkInitialDataLoad();
+            });
+        } catch (error) {
+            console.error('Error initializing data listeners:', error);
+            throw error;
+        }
+    }
+
+    // Check if initial data is loaded
+    function checkInitialDataLoad() {
+        if (!initialDataLoaded && playersLoaded && gameDaysLoaded) {
+            initialDataLoaded = true;
+            renderData();
+        }
+    }
+
+    // Handle sign out
+    window.handleSignOut = async function() {
+        try {
+            // Clean up listeners before signing out
+            if (unsubscribePlayers) {
+                unsubscribePlayers();
+                unsubscribePlayers = null;
+            }
+            if (unsubscribeGameDays) {
+                unsubscribeGameDays();
+                unsubscribeGameDays = null;
+            }
+            
+            await authManager.signOut();
+        } catch (error) {
+            console.error('Error signing out:', error);
+            alert('שגיאה בהתנתקות. אנא נסה שוב.');
+        }
+    };
+
+    // Initialize the app
+    initializeApp();
 });
