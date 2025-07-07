@@ -48,15 +48,73 @@
             </div>
         </div>
 
+        <!-- Player Selection Section (Hidden until first-time user) -->
+        <div id="player-selection-section" class="admin-section hidden">
+            <div class="player-selection-container">
+                <div class="player-selection-header">
+                    <h2>ברוך הבא! 🎉</h2>
+                    <p>זה נראה שזו הפעם הראשונה שלך במערכת. אנא בחר את השחקן שלך מהרשימה:</p>
+                </div>
+                
+                <div class="player-selection-search">
+                    <input type="text" id="player-selection-search" placeholder="חפש שחקן..." class="player-search-input">
+                    <span id="player-selection-count">נמצאו: 0 שחקנים</span>
+                </div>
+                
+                <div id="player-selection-grid" class="player-selection-grid">
+                    <!-- Players will be loaded here -->
+                </div>
+                
+                <div class="player-selection-actions">
+                    <button id="confirm-player-selection-btn" class="primary-btn large-btn" onclick="handleUserPlayerConnection()">
+                        אשר בחירת שחקן
+                    </button>
+                </div>
+                
+                <div id="player-selection-error" class="error-message hidden"></div>
+            </div>
+        </div>
+
         <!-- Main Admin Interface (Hidden until authenticated) -->
         <main id="admin-main" class="hidden">
             <!-- Admin Header with User Info -->
             <div class="admin-header">
                 <div class="admin-user-info">
-                    <span id="user-email"></span>
-                    <span class="admin-badge">מנהל</span>
+                    <div class="user-info-top">
+                        <span id="user-email"></span>
+                        <span id="admin-label" class="admin-badge">מנהל</span>
+                    </div>
+                    <div class="user-info-bottom">
+                        <span id="user-player-name" class="user-player-name"></span>
+                        <button id="connect-player-btn" onclick="showPlayerSelectionModal()" class="connect-player-btn" style="display: none;">
+                            <span class="player-icon">⚽</span> בחר שחקן
+                        </button>
+                    </div>
                 </div>
                 <button onclick="logout()" class="logout-btn">התנתק</button>
+                
+                <!-- Player Selection Modal -->
+                <div id="player-selection-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3>בחירת שחקן</h3>
+                            <button onclick="closePlayerSelectionModal()" class="close-modal">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="player-selection-search">
+                                <input type="text" id="modal-player-search" placeholder="חפש שחקן..." class="player-search-input">
+                                <span id="modal-player-count">נמצאו: 0 שחקנים</span>
+                            </div>
+                            <div id="modal-player-grid" class="player-selection-grid">
+                                <!-- Players will be loaded here -->
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button onclick="closePlayerSelectionModal()" class="secondary-btn">ביטול</button>
+                            <button onclick="handleModalPlayerSelection()" class="primary-btn" id="modal-confirm-btn" disabled>אשר בחירה</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Admin Tab Navigation -->
@@ -81,6 +139,10 @@
                     <button class="admin-tab" data-tab="admin-management">
                         <span class="tab-icon">👤</span>
                         <span class="tab-label">ניהול מנהלים</span>
+                    </button>
+                    <button class="admin-tab" data-tab="player-data">
+                        <span class="tab-icon">📊</span>
+                        <span class="tab-label">הנתונים שלי</span>
                     </button>
                     <button class="admin-tab" data-tab="settings">
                         <span class="tab-icon">⚙️</span>
@@ -264,7 +326,7 @@
                         <h2>תוצאות משחקים קטנים</h2>
                         
                         <!-- Live Mini-Game Stopwatch Section -->
-                        <div id="live-stopwatch-section" class="live-stopwatch-section">
+                        <div id="live-stopwatch-section" class="live-stopwatch-section hidden">
                             <div class="stopwatch-container">
                                 <div class="stopwatch-header">
                                     <h3>⏱️ סטופר משחק חי</h3>
@@ -324,10 +386,48 @@
                             </div>
                         </div>
                         
-                        <div class="mini-games-container">
-                            <div class="add-game-section">
-                                <button id="add-mini-game-btn" class="secondary-btn">הוסף משחק</button>
+                        <!-- New Game Creation Interface -->
+                        <div id="new-game-interface" class="new-game-interface">
+                            <div class="add-game-section-main">
+                                <button id="add-mini-game-btn" class="primary-btn large-btn">
+                                    <span class="btn-icon">⚽</span>
+                                    <span class="btn-text">הוסף משחק חדש</span>
+                                </button>
                             </div>
+                            
+                            <!-- Team Selection Modal -->
+                            <div id="team-selection-modal" class="team-selection-modal hidden">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h3>בחר קבוצות למשחק</h3>
+                                        <button id="close-team-selection" class="close-btn">×</button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div class="team-selection-form">
+                                            <div class="form-group">
+                                                <label for="team-a-select">קבוצה א:</label>
+                                                <select id="team-a-select" class="team-select">
+                                                    <option value="">-- בחר קבוצה --</option>
+                                                </select>
+                                            </div>
+                                            <div class="vs-separator">VS</div>
+                                            <div class="form-group">
+                                                <label for="team-b-select">קבוצה ב:</label>
+                                                <select id="team-b-select" class="team-select">
+                                                    <option value="">-- בחר קבוצה --</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button id="confirm-team-selection" class="primary-btn" disabled>אשר משחק</button>
+                                        <button id="cancel-team-selection" class="secondary-btn">ביטול</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mini-games-container">
                             <div id="mini-games-list">
                                 <!-- Mini games will be added here -->
                             </div>
@@ -576,6 +676,7 @@
                                 <div class="form-group">
                                     <label for="admin-role">תפקיד:</label>
                                     <select id="admin-role">
+                                        <option value="user">משתמש</option>
                                         <option value="admin">מנהל</option>
                                         <option value="super-admin">מנהל על</option>
                                     </select>
@@ -594,6 +695,59 @@
                         
                         <!-- Status Messages -->
                         <div id="admin-status-message" class="status-message hidden"></div>
+                    </div>
+                </div>
+
+                <!-- Player Data Tab -->
+                <div id="player-data-tab" class="tab-panel">
+                    <div class="player-data-content">
+                        <div class="player-data-header">
+                            <h3>הנתונים שלי</h3>
+                            <p>צפייה בנתונים האישיים שלך</p>
+                        </div>
+                        
+                        <div class="player-data-section">
+                            <div class="player-profile">
+                                <div class="profile-header">
+                                    <div class="profile-info">
+                                        <h4 id="player-name-display">טוען...</h4>
+                                        <p id="player-email-display">טוען...</p>
+                                    </div>
+                                    <div class="profile-status">
+                                        <span id="registration-status" class="status-badge">טוען...</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="player-stats-overview">
+                                <h4>סטטיסטיקות כלליות</h4>
+                                <div class="stats-grid" id="player-stats-grid">
+                                    <div class="stat-card">
+                                        <div class="stat-number" id="total-games">-</div>
+                                        <div class="stat-label">משחקים</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-number" id="total-goals">-</div>
+                                        <div class="stat-label">שערים</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-number" id="total-wins">-</div>
+                                        <div class="stat-label">ניצחונות</div>
+                                    </div>
+                                    <div class="stat-card">
+                                        <div class="stat-number" id="win-rate">-</div>
+                                        <div class="stat-label">אחוז ניצחון</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="recent-games-section">
+                                <h4>משחקים אחרונים</h4>
+                                <div id="recent-games-list" class="recent-games-list">
+                                    <div class="loading-message">טוען משחקים אחרונים...</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

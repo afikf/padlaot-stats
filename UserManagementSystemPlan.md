@@ -1,58 +1,78 @@
 # 🎯 User Management System Plan
 
 ## Overview
-This plan outlines the implementation of a user management system that allows players to sign in with their Google accounts and associate themselves with their player profiles in the StatsPad football management system.
+This plan outlines the implementation of a user management system that allows players to sign in with their Google accounts and associate themselves with their player profiles in the StatsPad football management system. The system uses a unified authentication approach through the existing admins collection.
 
 ## Phase 1: Database Schema Updates
 
-### 1.1 Players Collection Enhancement
+### 1.1 Enhanced Admins Collection (Unified Authentication)
 ```javascript
-// Current player structure
+// Current admin structure
 {
-  id: "player-123",
-  name: "שם השחקן",
-  // ... existing fields
+  email: "admin@gmail.com",
+  role: "super-admin", // or "admin"
+  addedAt: timestamp,
+  addedBy: "creator@gmail.com"
 }
 
-// New enhanced structure
+// NEW enhanced structure (replaces separate user-player mapping)
 {
-  id: "player-123",
-  name: "שם השחקן",
-  email: "player@gmail.com",           // NEW: Associated Google email
-  isRegistered: true,                  // NEW: Has completed registration
-  registeredAt: timestamp,             // NEW: When they registered
-  lastLoginAt: timestamp,              // NEW: Last login time
-  // ... existing fields
+  email: "user@gmail.com",
+  role: "user",                       // NEW: "user", "admin", "super-admin"
+  playerId: "player-123",             // NEW: Associated player ID
+  playerName: "שם השחקן",             // NEW: Player name for quick reference
+  isRegistered: true,                 // NEW: Has completed player association
+  registeredAt: timestamp,            // NEW: When they registered
+  lastLoginAt: timestamp,             // NEW: Last login time
+  addedAt: timestamp,
+  addedBy: "admin@gmail.com"
 }
 ```
 
-### 1.2 New User-Player Mapping Collection
+### 1.2 Role Hierarchy & Permissions
 ```javascript
-// Collection: "user-players"
-{
-  email: "player@gmail.com",
-  playerId: "player-123",
-  playerName: "שם השחקן",
-  registeredAt: timestamp,
-  status: "active" // active, inactive, pending
-}
+const permissions = {
+  'super-admin': [
+    'admin_panel_full',        // Full admin interface
+    'user_management',         // Manage all users
+    'game_management_full',    // Create, edit, delete games
+    'live_game_management',    // Manage live games
+    'player_dashboard'         // Personal player data
+  ],
+  
+  'admin': [
+    'admin_panel_full',        // Full admin interface  
+    'game_management_full',    // Create, edit, delete games
+    'live_game_management',    // Manage live games
+    'player_dashboard'         // Personal player data
+  ],
+  
+  'user': [
+    'admin_panel_limited',     // LIMITED admin interface (live games only)
+    'live_game_management',    // Manage live games only
+    'player_dashboard'         // Personal player data
+  ]
+};
 ```
 
 ## Phase 2: Authentication Flow Redesign
 
-### 2.1 New User Journey
+### 2.1 Enhanced User Journey (Unified Authentication)
 ```
 1. User visits site
 2. Google Sign-in page
 3. After successful auth:
-   - Check if email exists in user-players mapping
-   - If YES: Redirect to player dashboard
-   - If NO: Show player selection page
+   - Check if email exists in admins collection
+   - If YES: Load role and redirect based on permissions
+     * super-admin/admin: Full admin panel
+     * user: Limited admin panel (live games only) + player dashboard
+   - If NO: Show player selection page for new user registration
 4. Player selection page:
    - Show all players without email association
    - User selects their player identity
-   - Create mapping and update player record
-5. Redirect to personalized dashboard
+   - Create new record in admins collection with role "user"
+   - Set playerId and playerName fields
+5. Redirect to role-appropriate interface
 ```
 
 ### 2.2 Player Selection Interface
@@ -61,24 +81,33 @@ This plan outlines the implementation of a user management system that allows pl
 - **Confirmation**: "Are you [Player Name]?" dialog
 - **New Player Option**: "I'm not in the list" → Create new player
 
+### 2.3 Role-Based Interface Routing
+- **Super-Admin**: Full admin panel + player dashboard
+- **Admin**: Full admin panel + player dashboard  
+- **User**: Limited admin panel (live games only) + player dashboard
+
 ## Phase 3: Implementation Steps
 
 ### 3.1 Database Migration
 ```javascript
-// Add email field to existing players (initially null)
-// Create user-players collection
+// Enhance existing admins collection with new fields:
+// - playerId: Associated player ID
+// - playerName: Player name for quick reference  
+// - isRegistered: Has completed player association
+// - registeredAt: When they registered
+// - lastLoginAt: Last login time
 // Add indexes for performance
 ```
 
 ### 3.2 Authentication System
 ```javascript
-// New authentication flow:
+// Enhanced authentication flow:
 1. Google Sign-in
-2. Check user-players mapping
-3. Route to appropriate page:
-   - Player selection (new users)
-   - Player dashboard (existing users)
-   - Admin panel (admins)
+2. Check admins collection by email
+3. Route based on role:
+   - super-admin/admin: Full admin panel
+   - user: Limited admin panel (live games) + player dashboard
+   - new user: Player selection page
 ```
 
 ### 3.3 Player Selection Page
@@ -96,19 +125,44 @@ This plan outlines the implementation of a user management system that allows pl
 </div>
 ```
 
-### 3.4 Player Dashboard
+### 3.4 Enhanced Interface Design
+
+#### 3.4.1 User Dashboard (Limited Admin Access)
 ```html
-<!-- New page: player-dashboard.html -->
-<div class="player-dashboard">
-  <div class="player-header">
-    <h1>שלום, [שם השחקן]</h1>
-    <div class="player-stats-summary">
-      <!-- Personal stats overview -->
-    </div>
+<!-- Enhanced admin.html with role-based visibility -->
+<div class="admin-container">
+  <div class="tabs">
+    <button class="tab-button active" data-tab="dashboard">לוח בקרה</button>
+    <!-- Only show live games for users -->
+    <button class="tab-button" data-tab="player-data">הנתונים שלי</button>
   </div>
-  <div class="dashboard-sections">
-    <!-- Personal game history, stats, etc. -->
+  
+  <div class="dashboard-panel">
+    <!-- LIMITED: Only show live games (status 1 or 2) -->
+    <!-- Users can manage stopwatch, add goals, etc. -->
+    <!-- NO access to create/edit/delete games -->
   </div>
+  
+  <div class="player-data-panel hidden">
+    <!-- Personal player statistics and history -->
+  </div>
+</div>
+```
+
+#### 3.4.2 Admin/Super-Admin Interface
+```html
+<!-- Full admin.html interface -->
+<div class="admin-container">
+  <div class="tabs">
+    <button class="tab-button active" data-tab="dashboard">לוח בקרה</button>
+    <button class="tab-button" data-tab="admin-management">ניהול מנהלים</button>
+    <button class="tab-button" data-tab="player-data">הנתונים שלי</button>
+  </div>
+  
+  <!-- Full admin functionality -->
+  <!-- Create, edit, delete games -->
+  <!-- User management (super-admin only) -->
+  <!-- Personal player dashboard -->
 </div>
 ```
 
@@ -129,57 +183,83 @@ This plan outlines the implementation of a user management system that allows pl
 
 ## Phase 5: Admin Integration
 
-### 5.1 Enhanced Admin Panel
+### 5.1 Enhanced Admin Panel Features
+
+#### 5.1.1 Super-Admin Only Features
 ```javascript
-// New admin features:
-- View player-email associations
-- Manage unregistered players
+// User Management (super-admin only):
+- View all user-player associations
+- Promote users to admin role
+- Manage admin permissions
 - Send registration invitations
-- Player account management
+- User account management
 - Registration analytics
 ```
 
-### 5.2 Player Management
-- **Registration Status**: See who's registered vs unregistered
-- **Email Invitations**: Send registration links
-- **Account Merging**: Handle duplicate accounts
-- **Bulk Operations**: Mass email updates
+#### 5.1.2 Admin Features
+```javascript
+// Game Management (admin + super-admin):
+- Create, edit, delete games
+- Full game history access
+- Player statistics management
+- Team management
+```
+
+#### 5.1.3 User Features (Limited Admin Access)
+```javascript
+// Live Game Management (all authenticated users):
+- Manage live games (status 1 or 2)
+- Stopwatch controls
+- Goal logging
+- Score updates
+- Game status changes (start/end)
+// NO access to create/edit/delete games
+```
+
+### 5.2 Role-Based Access Control
+- **Super-Admin**: Full system control + user management
+- **Admin**: Full game management + personal data
+- **User**: Live game management + personal data only
+- **Guest**: Public read-only access
 
 ## Phase 6: Technical Implementation
 
-### 6.1 File Structure
+### 6.1 File Structure (Enhanced)
 ```
 /
 ├── index.html (public game history)
 ├── auth.html (Google sign-in)
 ├── player-selection.html (choose player)
-├── player-dashboard.html (personal dashboard)
-├── admin.html (admin panel)
+├── admin.html (unified admin interface - role-based UI)
 ├── js/
 │   ├── auth.js (authentication logic)
 │   ├── player-selection.js
-│   ├── player-dashboard.js
+│   ├── admin.js (enhanced with role-based features)
 │   └── user-management.js
 ```
 
-### 6.2 Security Considerations
-- **Role-based Access**: Admin, Player, Guest
-- **Data Isolation**: Players only see their own data
+### 6.2 Enhanced Security Considerations
+- **Three-Tier Role System**: Super-Admin, Admin, User
+- **Granular Permissions**: Live game access for all users
+- **Data Isolation**: Users see only their personal data
+- **Interface Restrictions**: Role-based UI visibility
 - **Email Verification**: Prevent account hijacking
 - **Session Management**: Secure login/logout
 
 ## Phase 7: Migration Strategy
 
-### 7.1 Gradual Rollout
-1. **Phase A**: Add email fields (optional)
-2. **Phase B**: Enable player registration
+### 7.1 Gradual Rollout (Revised)
+1. **Phase A**: Enhance admins collection with new fields
+2. **Phase B**: Enable user registration with player association
 3. **Phase C**: Encourage existing players to register
-4. **Phase D**: Make registration mandatory for new features
+4. **Phase D**: Enable live game management for all users
+5. **Phase E**: Promote active users to admin roles as needed
 
 ### 7.2 Backward Compatibility
 - **Public Access**: Keep public game history available
 - **Guest Mode**: Allow viewing without registration
 - **Admin Override**: Admins can manage unregistered players
+- **Progressive Enhancement**: Users get more features as they engage
 
 ## Phase 8: Future Enhancements
 
@@ -195,51 +275,58 @@ This plan outlines the implementation of a user management system that allows pl
 - **Progress Tracking**: Improvement over time
 - **Recommendations**: Suggested training, positions
 
-## 🚀 Implementation Priority
+## 🚀 Implementation Priority (Updated)
 
 ### High Priority (Phase 1-3)
-1. Database schema updates
+1. Enhanced admins collection schema
 2. Player selection interface
-3. Basic authentication flow
-4. Player-email mapping
+3. Role-based authentication flow
+4. Limited admin access for users
 
 ### Medium Priority (Phase 4-5)
-1. Personalized dashboard
-2. Admin panel integration
-3. Registration management
+1. Personal player dashboard integration
+2. Enhanced admin panel features
+3. User registration management
 
 ### Low Priority (Phase 6-8)
-1. Advanced features
+1. Advanced user features
 2. Mobile optimization
 3. Social features
+4. Advanced analytics
 
-## 📋 Next Steps
+## 📋 Next Steps (Updated)
 
-1. **Start with database migration** - Add email field to players
-2. **Create player selection page** - Core functionality
-3. **Implement authentication routing** - Direct users appropriately
-4. **Test with a few players** - Validate the flow
-5. **Gradually roll out** - Expand to all players
+1. **Enhance admins collection** - Add new fields for user-player mapping
+2. **Create player selection page** - Core registration functionality
+3. **Implement role-based authentication** - Route users based on permissions
+4. **Add limited admin access** - Enable live game management for users
+5. **Test with pilot users** - Validate the complete flow
+6. **Gradually roll out** - Expand to all players with promotion path
 
-## Technical Notes
+## Technical Notes (Updated)
 
 ### Database Collections
-- `players` - Enhanced with email and registration fields
-- `user-players` - New mapping collection
-- `admins` - Existing admin management
-- `game-days` - Existing game data
+- `players` - Existing player data (unchanged)
+- `admins` - Enhanced with user-player mapping fields
+- `game-days` - Existing game data (unchanged)
 
 ### Authentication Flow
 1. Google OAuth integration
-2. User-player mapping check
-3. Role-based routing (Admin/Player/Guest)
-4. Session management
+2. Check admins collection for email
+3. Role-based routing (Super-Admin/Admin/User/Guest)
+4. Session management with role persistence
 
-### User Roles
+### User Roles (Enhanced)
 - **Guest**: Public access, view-only
-- **Player**: Personal dashboard, own data
-- **Admin**: Full system management
-- **Super-Admin**: User management, system settings
+- **User**: Limited admin access (live games only) + personal data
+- **Admin**: Full game management + personal data
+- **Super-Admin**: User management + full system control
+
+### Key Changes from Original Plan
+1. **Unified Authentication**: Single admins collection instead of separate user-player mapping
+2. **Enhanced User Role**: Users get limited admin access for live games
+3. **Simplified Architecture**: Fewer collections, cleaner data model
+4. **Progressive Access**: Users can participate in live game management
 
 ## Security Considerations
 
