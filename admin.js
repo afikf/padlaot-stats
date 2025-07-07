@@ -37,6 +37,7 @@ let realtimeListeners = {
     admins: null,
     subscriptions: null
 };
+let isSigningIn = false;
 
 // Real-time data cache
 let realtimeCache = {
@@ -217,7 +218,13 @@ function setupAdminsRealtimeListener() {
                     email: data.email,
                     role: data.role,
                     addedAt: data.addedAt,
-                    addedBy: data.addedBy
+                    addedBy: data.addedBy,
+                    // Enhanced fields for user management
+                    playerId: data.playerId || null,
+                    playerName: data.playerName || null,
+                    isRegistered: data.isRegistered || false,
+                    registeredAt: data.registeredAt || null,
+                    lastLoginAt: data.lastLoginAt || null
                 });
             });
             
@@ -534,6 +541,7 @@ let editModeSource = null; // Track where edit mode was initiated from
 // DOM Elements
 const authSection = document.getElementById('auth-section');
 const adminMain = document.getElementById('admin-main');
+const playerSelectionSection = document.getElementById('player-selection-section');
 const authForm = document.getElementById('auth-form');
 const authError = document.getElementById('auth-error');
 const loadingOverlay = document.getElementById('loading-overlay');
@@ -563,6 +571,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up authentication state monitoring
         setupAuthStateMonitoring();
         
+        // Set up tab switching for player data tab
+        setupPlayerDataTab();
+        
         // Then initialize the app
         initializeApp();
     } catch (error) {
@@ -578,6 +589,174 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
     }
 });
+
+// Set up player data tab functionality (now handled by main tab switching)
+function setupPlayerDataTab() {
+    // Player data tab is now handled by the main switchToTab function
+    console.log('Player data tab setup complete');
+}
+
+// Load player data for the current user
+async function loadPlayerData() {
+    try {
+        console.log('Loading player data for current user...');
+        
+        // Get current user info
+        const user = auth.currentUser;
+        if (!user) {
+            console.log('No authenticated user found');
+            return;
+        }
+        
+        // Get user record from cache
+        const allAdmins = await loadAllAdminsFromCache();
+        const userRecord = allAdmins.find(admin => admin.email === user.email);
+        
+        if (!userRecord) {
+            console.log('User record not found');
+            return;
+        }
+        
+        // Update profile display
+        updatePlayerProfileDisplay(userRecord);
+        
+        // Load player statistics if user is associated with a player
+        if (userRecord.playerId) {
+            await loadPlayerStatistics(userRecord.playerId);
+            await loadRecentGames(userRecord.playerId);
+        } else {
+            showUnregisteredPlayerMessage();
+        }
+        
+    } catch (error) {
+        console.error('Error loading player data:', error);
+    }
+}
+
+// Update player profile display
+function updatePlayerProfileDisplay(userRecord) {
+    const playerNameDisplay = document.getElementById('player-name-display');
+    const playerEmailDisplay = document.getElementById('player-email-display');
+    const registrationStatus = document.getElementById('registration-status');
+    
+    if (playerNameDisplay) {
+        playerNameDisplay.textContent = userRecord.playerName || 'לא משויך לשחקן';
+    }
+    
+    if (playerEmailDisplay) {
+        playerEmailDisplay.textContent = userRecord.email;
+    }
+    
+    if (registrationStatus) {
+        if (userRecord.isRegistered) {
+            registrationStatus.textContent = 'רשום';
+            registrationStatus.className = 'status-badge registered';
+        } else {
+            registrationStatus.textContent = 'לא רשום';
+            registrationStatus.className = 'status-badge not-registered';
+        }
+    }
+}
+
+// Load player statistics
+async function loadPlayerStatistics(playerId) {
+    try {
+        // Get player data from cache
+        const allPlayers = await loadAllPlayersFromCache();
+        const player = allPlayers.find(p => p.id === playerId);
+        
+        if (!player) {
+            console.log('Player not found:', playerId);
+            return;
+        }
+        
+        // Update statistics display
+        const totalGames = document.getElementById('total-games');
+        const totalGoals = document.getElementById('total-goals');
+        const totalWins = document.getElementById('total-wins');
+        const winRate = document.getElementById('win-rate');
+        
+        if (totalGames) totalGames.textContent = player.gameNights || 0;
+        if (totalGoals) totalGoals.textContent = player.goals || 0;
+        if (totalWins) totalWins.textContent = player.wins || 0;
+        
+        if (winRate) {
+            const rate = player.gameNights > 0 ? Math.round((player.wins / player.gameNights) * 100) : 0;
+            winRate.textContent = `${rate}%`;
+        }
+        
+    } catch (error) {
+        console.error('Error loading player statistics:', error);
+    }
+}
+
+// Load recent games for player
+async function loadRecentGames(playerId) {
+    try {
+        const recentGamesList = document.getElementById('recent-games-list');
+        if (!recentGamesList) return;
+        
+        // Get game days from cache
+        const allGameDays = await loadAllGameDaysFromCache();
+        
+        // Filter games where player participated
+        const playerGames = allGameDays
+            .filter(game => game.participants && game.participants.includes(playerId))
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 5); // Show last 5 games
+        
+        if (playerGames.length === 0) {
+            recentGamesList.innerHTML = '<div class="no-games-message">אין משחקים להצגה</div>';
+            return;
+        }
+        
+        // Create game cards
+        const gamesHTML = playerGames.map(game => createGameCard(game)).join('');
+        recentGamesList.innerHTML = gamesHTML;
+        
+    } catch (error) {
+        console.error('Error loading recent games:', error);
+    }
+}
+
+// Create game card for recent games
+function createGameCard(game) {
+    const gameDate = new Date(game.date).toLocaleDateString('he-IL');
+    const statusText = STATUS[game.status] || 'לא ידוע';
+    
+    return `
+        <div class="recent-game-card">
+            <div class="game-date">${gameDate}</div>
+            <div class="game-status">${statusText}</div>
+            <div class="game-participants">${game.participants ? game.participants.length : 0} משתתפים</div>
+        </div>
+    `;
+}
+
+// Show message for unregistered players
+function showUnregisteredPlayerMessage() {
+    const recentGamesList = document.getElementById('recent-games-list');
+    if (recentGamesList) {
+        recentGamesList.innerHTML = `
+            <div class="unregistered-message">
+                <p>עליך להירשם ולשייך את עצמך לשחקן כדי לראות את הנתונים שלך</p>
+                <button class="primary-btn" onclick="showPlayerSelection()">בחר שחקן</button>
+            </div>
+        `;
+    }
+    
+    // Clear statistics
+    const statsElements = ['total-games', 'total-goals', 'total-wins', 'win-rate'];
+    statsElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '-';
+    });
+}
+
+// Show player selection (placeholder for Phase 3)
+function showPlayerSelection() {
+    alert('בחירת שחקן תהיה זמינה בשלב הבא של הפיתוח');
+}
 
 function initializeApp() {
     try {
@@ -712,14 +891,8 @@ function setupAdminTabNavigation() {
 }
 
 function setupRoleBasedTabVisibility() {
-    // Hide admin management tab for regular admins
-    const adminManagementTab = document.querySelector('[data-tab="admin-management"]');
-    const adminManagementPanel = document.getElementById('admin-management-tab');
-    
     console.log('Setting up role-based visibility. Current user role:', currentUserRole);
-    console.log('Admin management tab element:', adminManagementTab);
-    console.log('Admin management panel element:', adminManagementPanel);
-    
+
     // If role is not set yet, retry after a short delay
     if (!currentUserRole || currentUserRole === '') {
         console.log('Role not set yet, retrying in 200ms...');
@@ -728,28 +901,126 @@ function setupRoleBasedTabVisibility() {
         }, 200);
         return;
     }
+
+    // Update the admin-label badge to reflect the current user's role
+    const adminLabelElement = document.getElementById('admin-label');
+    if (adminLabelElement) {
+        let badgeText = 'משתמש';
+        if (currentUserRole === 'super-admin') {
+            badgeText = 'מנהל על';
+        } else if (currentUserRole === 'admin') {
+            badgeText = 'מנהל';
+        }
+        adminLabelElement.textContent = badgeText;
+    }
+
+    // Get all tab elements
+    const allTabs = document.querySelectorAll('.admin-tab');
+    const adminManagementTab = document.querySelector('[data-tab="admin-management"]');
+    const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+    const adminTabsContainer = document.querySelector('.admin-tabs-container');
+
+    switch (currentUserRole) {
+        case 'super-admin':
+            // Super-admin sees everything - show all tabs
+            allTabs.forEach(tab => {
+                tab.style.display = 'block';
+                tab.classList.remove('hidden');
+            });
+            if (adminTabsContainer) {
+                adminTabsContainer.style.display = 'block';
+                adminTabsContainer.classList.remove('hidden');
+            }
+            console.log('Super-admin: All tabs visible');
+            break;
+        case 'admin':
+            // Admin sees everything except admin management
+            allTabs.forEach(tab => {
+                if (tab === adminManagementTab) {
+                    tab.style.display = 'none';
+                    tab.classList.add('hidden');
+                } else {
+                    tab.style.display = 'block';
+                    tab.classList.remove('hidden');
+                }
+            });
+            if (adminTabsContainer) {
+                adminTabsContainer.style.display = 'block';
+                adminTabsContainer.classList.remove('hidden');
+            }
+            console.log('Admin: Admin management hidden, other tabs visible');
+            break;
+        case 'user':
+            // User sees only dashboard and no tab navigation
+            allTabs.forEach(tab => {
+                if (tab === dashboardTab) {
+                    tab.style.display = 'block';
+                    tab.classList.remove('hidden');
+                } else {
+                    tab.style.display = 'none';
+                    tab.classList.add('hidden');
+                }
+            });
+            // Hide the entire tab navigation for users
+            if (adminTabsContainer) {
+                adminTabsContainer.style.display = 'none';
+                adminTabsContainer.classList.add('hidden');
+            }
+            console.log('User: Only dashboard visible, tab navigation hidden');
+            break;
+        default:
+            console.log('Unknown role:', currentUserRole);
+            break;
+    }
+}
+
+// Setup UI elements based on user role
+function setupUserRoleBasedUI() {
+    if (currentUserRole === 'user') {
+        // Hide create new game section for users
+        const createGameSection = document.querySelector('.dashboard-create-section');
+        if (createGameSection) {
+            createGameSection.style.display = 'none';
+            createGameSection.classList.add('hidden');
+        }
+        
+        // Add "no live game" message if no live games exist
+        checkAndShowNoLiveGameMessage();
+    }
+}
+
+// Check if there are live games and show appropriate message for users
+function checkAndShowNoLiveGameMessage() {
+    if (currentUserRole !== 'user') return;
     
-    // Show/hide admin management tab based on user role
-    if (currentUserRole !== 'super-admin') {
-        if (adminManagementTab) {
-            adminManagementTab.style.display = 'none';
-            adminManagementTab.classList.add('hidden');
+    const liveGamesSection = document.getElementById('live-games-section');
+    const noLiveGameMessage = document.getElementById('no-live-game-message');
+    
+    // Remove existing message if it exists
+    if (noLiveGameMessage) {
+        noLiveGameMessage.remove();
+    }
+    
+    // If no live games are shown, add a message
+    if (!liveGamesSection || liveGamesSection.classList.contains('hidden')) {
+        const dashboardTab = document.getElementById('dashboard-tab');
+        if (dashboardTab) {
+            const messageDiv = document.createElement('div');
+            messageDiv.id = 'no-live-game-message';
+            messageDiv.className = 'no-live-game-message';
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <h3>אין משחק חי כרגע</h3>
+                    <p>כרגע אין משחק חי לניהול. אנא בדוק מאוחר יותר או פנה למנהל המערכת.</p>
+                </div>
+            `;
+            
+            // Insert after the dashboard title
+            const dashboardTitle = dashboardTab.querySelector('h2');
+            if (dashboardTitle) {
+                dashboardTitle.parentNode.insertBefore(messageDiv, dashboardTitle.nextSibling);
+            }
         }
-        if (adminManagementPanel) {
-            adminManagementPanel.style.display = 'none';
-            adminManagementPanel.classList.add('hidden');
-        }
-        console.log('Admin management tab hidden for regular admin');
-    } else {
-        if (adminManagementTab) {
-            adminManagementTab.style.display = 'block';
-            adminManagementTab.classList.remove('hidden');
-        }
-        if (adminManagementPanel) {
-            adminManagementPanel.style.display = 'block';
-            adminManagementPanel.classList.remove('hidden');
-        }
-        console.log('Admin management tab shown for super admin');
     }
 }
 
@@ -807,6 +1078,9 @@ function switchToTab(tabName) {
     } else if (tabName === 'admin-management') {
         // Initialize admin management
         initializeAdminManagement();
+    } else if (tabName === 'player-data') {
+        // Load player data for current user
+        loadPlayerData();
     }
 }
 
@@ -1170,26 +1444,51 @@ function setupAuthStateMonitoring() {
         showAdminInterface();
         return;
     }
-    
-    // Monitor authentication state
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            const isAuthorized = await isAuthorizedAdmin(user.email);
+            console.log('Auth state listener: User detected ->', user.email);
+            const isAuthorized = await isAuthorizedUser(user.email);
+
             if (isAuthorized) {
-                console.log('Authorized admin logged in:', user.email, 'Role:', currentUserRole);
+                console.log('Auth state listener: User is authorized. Showing interface.');
                 showAdminInterface(user);
             } else {
-                console.log('User not authorized:', user.email);
-                // Sign out unauthorized user
-                await signOut(auth);
-                showLoginInterface();
-                showErrorToast('גישה נדחתה', 'אינך מורשה לגשת לממשק הניהול');
+                // New user: add to DB as 'user' and let in
+                try {
+                    await registerNewUser(user.email); // This should add them to Firestore as role: 'user'
+                    showSuccessToast('נרשמת בהצלחה', 'ברוך הבא למערכת!');
+                    showAdminInterface(user);
+                } catch (e) {
+                    showErrorToast('שגיאת הרשמה', 'לא ניתן לרשום משתמש חדש. אנא נסה שנית.');
+                    await signOut(auth);
+                    showLoginInterface();
+                }
             }
         } else {
-            console.log('User not logged in');
+            console.log('Auth state listener: No user logged in. Showing login interface.');
             showLoginInterface();
         }
     });
+    
+    // Monitor authentication state
+    // onAuthStateChanged(auth, async (user) => {
+    //     if (user) {
+    //         const isAuthorized = await isAuthorizedAdmin(user.email);
+    //         if (isAuthorized) {
+    //             console.log('Authorized admin logged in:', user.email, 'Role:', currentUserRole);
+    //             showAdminInterface(user);
+    //         } else {
+    //             console.log('User not authorized:', user.email);
+    //             // Sign out unauthorized user
+    //             await signOut(auth);
+    //             showLoginInterface();
+    //             showErrorToast('גישה נדחתה', 'אינך מורשה לגשת לממשק הניהול');
+    //         }
+    //     } else {
+    //         console.log('User not logged in');
+    //         showLoginInterface();
+    //     }
+    // });
 }
 
 // Real-time function to load all admins from cache
@@ -1203,8 +1502,8 @@ async function loadAllAdminsFromCache() {
     return getAdminsFromCache();
 }
 
-// Check if user is authorized admin and get their role
-async function isAuthorizedAdmin(email) {
+// Check if user is authorized and get their role
+async function isAuthorizedUser(email) {
     if (DEMO_MODE) {
         // In demo mode, assign different roles based on email
         if (email === AUTHORIZED_ADMIN_EMAIL) {
@@ -1213,8 +1512,11 @@ async function isAuthorizedAdmin(email) {
         } else if (email === 'regular@example.com') {
             currentUserRole = 'admin';
             window.currentUserRole = currentUserRole;
+        } else if (email === 'user@example.com') {
+            currentUserRole = 'user';
+            window.currentUserRole = currentUserRole;
         } else {
-            currentUserRole = 'admin'; // Default to admin for any other email
+            currentUserRole = 'user'; // Default to user for any other email
             window.currentUserRole = currentUserRole;
         }
         
@@ -1229,14 +1531,17 @@ async function isAuthorizedAdmin(email) {
     try {
         // Use cached admin data
         const allAdmins = await loadAllAdminsFromCache();
-        console.log('All admins from cache:', allAdmins);
-        const adminRecord = allAdmins.find(admin => admin.email === email);
-        console.log('Admin record for', email, ':', adminRecord);
+        console.log('All users from cache:', allAdmins);
+        const userRecord = allAdmins.find(admin => admin.email === email);
+        console.log('User record for', email, ':', userRecord);
         
-        if (adminRecord) {
-            currentUserRole = adminRecord.role;
+        if (userRecord) {
+            currentUserRole = userRecord.role;
             window.currentUserRole = currentUserRole;
             console.log('Set currentUserRole to:', currentUserRole);
+            
+            // Update last login time
+            await updateLastLoginTime(email);
             
             // Update role-based visibility after setting the role
             setTimeout(() => {
@@ -1246,80 +1551,188 @@ async function isAuthorizedAdmin(email) {
             return true;
         }
         
+        // If user not found, they are NOT authorized
+        console.log('User not found in system:', email);
         return false;
     } catch (error) {
-        console.error('Error checking admin authorization:', error);
+        console.error('Error checking user authorization:', error);
         return false;
     }
 }
 
+// Update last login time for user
+async function updateLastLoginTime(email) {
+    if (DEMO_MODE) return;
+    
+    try {
+        const adminsRef = collection(db, 'admins');
+        const userQuery = query(adminsRef, where('email', '==', email));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (!userSnapshot.empty) {
+            const userDoc = userSnapshot.docs[0];
+            await updateDoc(doc(db, 'admins', userDoc.id), {
+                lastLoginAt: new Date()
+            });
+            console.log('Updated last login time for:', email);
+        }
+    } catch (error) {
+        console.error('Error updating last login time:', error);
+    }
+}
+
+// Create new user record in admins collection
+async function createNewUserRecord(email) {
+    if (DEMO_MODE) {
+        console.log('Demo mode: Would create new user record for:', email);
+        return;
+    }
+    
+    try {
+        const newUser = {
+            email: email,
+            role: 'user',
+            playerId: null,              // Will be set during player selection
+            playerName: null,            // Will be set during player selection
+            isRegistered: false,         // Will be set to true after player selection
+            registeredAt: null,          // Will be set during player selection
+            lastLoginAt: new Date(),     // Set current login time
+            addedAt: new Date(),
+            addedBy: 'auto-registration'
+        };
+        
+        // Add to Firestore using email as document ID
+        const userDocRef = doc(db, 'admins', email);
+        console.log('Attempting to add new user:', newUser);
+        await setDoc(userDocRef, newUser);
+        
+        console.log('✅ New user record created successfully for:', email);
+        
+        // Invalidate admins cache to refresh the data
+        invalidateCache('admins');
+        
+    } catch (error) {
+        console.error('❌ Error creating new user record:', error);
+        throw error;
+    }
+}
+
+// Function to handle new user registration (called only when we want to allow new users)
+async function registerNewUser(email) {
+    if (DEMO_MODE) {
+        console.log('Demo mode: Would register new user for:', email);
+        return true;
+    }
+    
+    try {
+        await createNewUserRecord(email);
+        console.log('✅ New user registered successfully for:', email);
+        
+        // Set role and return true
+        currentUserRole = 'user';
+        window.currentUserRole = currentUserRole;
+        
+        // Update role-based visibility
+        setTimeout(() => {
+            setupRoleBasedTabVisibility();
+        }, 50);
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Error registering new user:', error);
+        return false;
+    }
+}
+
+// Legacy function for backward compatibility
+async function isAuthorizedAdmin(email) {
+    return await isAuthorizedUser(email);
+}
+
 // Google Sign-In function
+// DELETE the old function and PASTE this one
 async function signInWithGoogle() {
     if (DEMO_MODE || !auth || !googleProvider) {
         console.log('Demo mode or auth not available');
         showAdminInterface();
         return;
     }
-    
     try {
-        // Clear any existing auth state to prevent session storage issues
-        try {
-            await signOut(auth);
-        } catch (signOutError) {
-            console.log('No existing session to clear');
-        }
-        
-        // Configure popup for better compatibility with GitHub Pages
         const result = await signInWithPopup(auth, googleProvider);
         const user = result.user;
-        
         console.log('Sign-in successful:', user.email);
-        
-        const isAuthorized = await isAuthorizedAdmin(user.email);
+
+        // Check if user is in your system
+        const isAuthorized = await isAuthorizedUser(user.email);
         if (isAuthorized) {
-            console.log("Admin logged in successfully:", user.email);
-            // Auth state change will handle showing admin interface
+            // Check if user needs to select a player
+            const needsPlayerSelection = await checkIfUserNeedsPlayerSelection(user.email);
+            if (needsPlayerSelection) {
+                showPlayerSelectionInterface(user);
+            } else {
+                showMainAdminInterface(user);
+            }
         } else {
-            // Sign out unauthorized user
-            await signOut(auth);
-            showErrorToast('גישה נדחתה', 'אינך מורשה לגשת לממשק הניהול');
+            const shouldRegister = await showCustomConfirm(
+                'משתמש חדש',
+                `האימייל ${user.email} לא קיים במערכת. האם תרצה להירשם כמשתמש חדש?`,
+                {
+                    confirmText: 'כן, הירשם אותי',
+                    cancelText: 'לא, התנתק',
+                    type: 'info'
+                }
+            );
+            if (shouldRegister) {
+                const registrationSuccess = await registerNewUser(user.email);
+                if (registrationSuccess) {
+                    showSuccessToast('הרשמה הושלמה', 'ברוך הבא למערכת!');
+                    showPlayerSelectionInterface(user);
+                } else {
+                    await signOut(auth);
+                    showErrorToast('שגיאת הרשמה', 'לא ניתן לרשום משתמש חדש. אנא נסה שנית.');
+                }
+            } else {
+                await signOut(auth);
+                showErrorToast('התנתקות', 'התנתקת מהמערכת');
+            }
         }
     } catch (error) {
-        console.error("Google sign-in failed:", error);
-        
-        // Handle specific Firebase auth errors
-        if (error.code === 'auth/popup-closed-by-user') {
-            showErrorToast('התחברות בוטלה', 'חלון ההתחברות נסגר');
-        } else if (error.code === 'auth/popup-blocked') {
-            showErrorToast('חלון נחסם', 'אנא אפשר חלונות קופצים עבור האתר');
-        } else if (error.code === 'auth/cancelled-popup-request') {
-            showErrorToast('התחברות בוטלה', 'בקשת התחברות בוטלה');
-        } else if (error.message && error.message.includes('sessionStorage')) {
-            showErrorToast('שגיאת אחסון', 'אנא נסה לרענן את הדף או להשתמש בדפדפן אחר');
-        } else {
-            showErrorToast('שגיאת התחברות', 'לא ניתן להתחבר עם Google. אנא נסה שנית.');
-        }
+        console.error('Google sign-in failed:', error);
+        showErrorToast('שגיאת התחברות', 'אירעה שגיאה. אנא נסה שנית.');
     }
 }
 
-// Logout function
-async function logout() {
-    if (DEMO_MODE || !auth) {
-        showLoginInterface();
-        return;
-    }
-    
-    try {
-        await signOut(auth);
-        showSuccessToast('התנתקות', 'התנתקת בהצלחה');
-    } catch (error) {
-        console.error('Logout error:', error);
-        showErrorToast('שגיאת התנתקות', 'אנא נסה שנית');
-    }
-}
 
 // Show admin interface
 function showAdminInterface(user = null) {
+    // Skip player selection check for super-admin and admin roles
+    if (user && (window.currentUserRole === 'super-admin' || window.currentUserRole === 'admin')) {
+        console.log('User is admin/super-admin, showing main interface');
+        showMainAdminInterface(user);
+        return;
+    }
+    
+    // Check if this is a first-time user who needs to select a player
+    if (user) {
+        checkIfUserNeedsPlayerSelection(user.email).then(needsSelection => {
+            if (needsSelection) {
+                showPlayerSelectionInterface(user);
+                return;
+            } else {
+                showMainAdminInterface(user);
+            }
+        }).catch(error => {
+            console.error('Error checking player selection status:', error);
+            showMainAdminInterface(user);
+        });
+    } else {
+        console.log('No user provided, showing main admin interface');
+        showMainAdminInterface(user);
+    }
+}
+
+// Show main admin interface (after player selection or for existing users)
+function showMainAdminInterface(user = null) {
     if (authSection) {
         authSection.style.display = 'none';
         authSection.classList.add('hidden');
@@ -1328,12 +1741,34 @@ function showAdminInterface(user = null) {
         adminMain.style.display = 'block';
         adminMain.classList.remove('hidden');
     }
+    if (playerSelectionSection) {
+        playerSelectionSection.style.display = 'none';
+        playerSelectionSection.classList.add('hidden');
+    }
+    
+    
     
     // Update user info if user is provided
     if (user) {
         const userEmailElement = document.getElementById('user-email');
         if (userEmailElement) {
             userEmailElement.textContent = user.email;
+        }
+        const userPlayerNameElement = document.getElementById('user-player-name');
+        if (userPlayerNameElement) {
+            loadUserPlayerName(user.email, userPlayerNameElement);
+        }
+        
+        // Update the admin-label badge to reflect the current user's role
+        const adminLabelElement = document.getElementById('admin-label');
+        if (adminLabelElement) {
+            let badgeText = 'משתמש';
+            if (window.currentUserRole === 'super-admin') {
+                badgeText = 'מנהל על';
+            } else if (window.currentUserRole === 'admin') {
+                badgeText = 'מנהל';
+            }
+            adminLabelElement.textContent = badgeText;
         }
     }
     
@@ -1353,6 +1788,8 @@ function showAdminInterface(user = null) {
     // Handle role-based tab visibility - delay to ensure role is set
     setTimeout(() => {
         setupRoleBasedTabVisibility();
+        // Also hide create game section for users
+        setupUserRoleBasedUI();
     }, 100);
     
     // Only run expensive operations once per session
@@ -1386,6 +1823,256 @@ function showAdminInterface(user = null) {
     console.log('Admin interface shown');
 }
 
+async function loadUserPlayerName(email, element) {
+    try {
+        console.log('🔍 Loading player name for email:', email);
+        
+        // Query for user document by email field
+        const q = query(collection(db, 'admins'), where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        console.log('📥 Found matching documents:', querySnapshot.size);
+        
+        if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const data = userDoc.data();
+            console.log('📋 User data:', data);
+            
+            if (data.playerName) {
+                console.log('✅ Player name found:', data.playerName);
+                element.innerHTML = `<span class="player-icon">⚽</span> ${data.playerName}`;
+                element.title = `שחקן משויך: ${data.playerName}`;
+                // Hide connect button when player is already connected
+                document.getElementById('connect-player-btn').style.display = 'none';
+            } else {
+                console.log('⚪ No player connected');
+                element.innerHTML = '<span class="player-icon">⚪</span> לא משויך לשחקן';
+                element.title = 'לא משויך לשחקן';
+                // Show connect button for super-admin when no player is connected
+                if (window.currentUserRole === 'super-admin') {
+                    document.getElementById('connect-player-btn').style.display = 'inline-flex';
+                } else {
+                    document.getElementById('connect-player-btn').style.display = 'none';
+                }
+            }
+        } else {
+            console.log('❌ No user document found');
+            element.innerHTML = '';
+            // Show connect button for super-admin when no document exists
+            if (window.currentUserRole === 'super-admin') {
+                document.getElementById('connect-player-btn').style.display = 'inline-flex';
+            } else {
+                document.getElementById('connect-player-btn').style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error('Error loading player name:', e);
+        element.innerHTML = '';
+        // Only show connect button for super-admin
+        if (window.currentUserRole === 'super-admin') {
+            document.getElementById('connect-player-btn').style.display = 'inline-flex';
+        } else {
+            document.getElementById('connect-player-btn').style.display = 'none';
+        }
+    }
+}
+
+// Player Selection Modal Functions
+let selectedModalPlayerId = null;
+
+function showPlayerSelectionModal() {
+    // Only allow super-admin to access this functionality
+    if (window.currentUserRole !== 'super-admin') {
+        console.error('Only super-admin can access player selection');
+        showErrorToast('הרשאות', 'רק מנהל-על יכול לבחור שחקן');
+        return;
+    }
+
+    const modal = document.getElementById('player-selection-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
+    loadPlayersForModal();
+    setupModalEventListeners();
+}
+
+function closePlayerSelectionModal() {
+    const modal = document.getElementById('player-selection-modal');
+    modal.classList.remove('show');
+    modal.classList.add('hidden');
+    selectedModalPlayerId = null;
+    document.getElementById('modal-confirm-btn').disabled = true;
+}
+
+async function loadPlayersForModal() {
+    try {
+        showLoading(true);
+        let players = [];
+        if (DEMO_MODE) {
+            players = loadDemoPlayers();
+        } else {
+            await waitForCacheInitialization('players');
+            players = getPlayersFromCache();
+        }
+        renderModalPlayerGrid(players);
+        updateModalPlayerCount(players.length);
+    } catch (error) {
+        console.error('Error loading players for modal:', error);
+        showErrorToast('שגיאה בטעינת שחקנים', 'לא ניתן לטעון את רשימת השחקנים');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function renderModalPlayerGrid(players) {
+    const grid = document.getElementById('modal-player-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    if (!players || players.length === 0) {
+        grid.innerHTML = '<div class="no-players-message">אין שחקנים זמינים לבחירה</div>';
+        return;
+    }
+    
+    players.forEach(player => {
+        const playerCard = document.createElement('div');
+        playerCard.className = 'player-selection-card';
+        playerCard.dataset.playerId = player.id;
+        
+        playerCard.innerHTML = `
+            <div class="player-name">${player.name}</div>
+            <div class="player-info">
+                ${player.phone ? `📞 ${player.phone}<br>` : ''}
+                ${player.email ? `📧 ${player.email}<br>` : ''}
+                ${player.position ? `⚽ ${player.position}` : ''}
+            </div>
+        `;
+        
+        playerCard.addEventListener('click', () => selectModalPlayer(player.id));
+        grid.appendChild(playerCard);
+    });
+}
+
+function selectModalPlayer(playerId) {
+    const allCards = document.querySelectorAll('#modal-player-grid .player-selection-card');
+    allCards.forEach(card => card.classList.remove('selected'));
+    
+    const selectedCard = document.querySelector(`#modal-player-grid [data-player-id="${playerId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+    
+    selectedModalPlayerId = playerId;
+    document.getElementById('modal-confirm-btn').disabled = false;
+}
+
+function setupModalEventListeners() {
+    const searchInput = document.getElementById('modal-player-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleModalPlayerSearch);
+    }
+}
+
+function handleModalPlayerSearch(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    const allCards = document.querySelectorAll('#modal-player-grid .player-selection-card');
+    
+    let visibleCount = 0;
+    
+    allCards.forEach(card => {
+        const playerName = card.querySelector('.player-name').textContent.toLowerCase();
+        const playerInfo = card.querySelector('.player-info').textContent.toLowerCase();
+        
+        if (playerName.includes(searchTerm) || playerInfo.includes(searchTerm)) {
+            card.style.display = 'block';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    updateModalPlayerCount(visibleCount);
+}
+
+function updateModalPlayerCount(count) {
+    const countElement = document.getElementById('modal-player-count');
+    if (countElement) {
+        countElement.textContent = `נמצאו: ${count} שחקנים`;
+    }
+}
+
+async function handleModalPlayerSelection() {
+    console.log('🚀 Starting handleModalPlayerSelection');
+    
+    // Only allow super-admin to access this functionality
+    if (window.currentUserRole !== 'super-admin') {
+        console.error('❌ Access denied: Only super-admin can access player selection');
+        showErrorToast('הרשאות', 'רק מנהל-על יכול לבחור שחקן');
+        return;
+    }
+    console.log('✅ Role check passed:', window.currentUserRole);
+
+    if (!selectedModalPlayerId) {
+        console.error('❌ No player selected');
+        showErrorToast('בחירת שחקן', 'אנא בחר שחקן מהרשימה');
+        return;
+    }
+    console.log('✅ Selected player ID:', selectedModalPlayerId);
+    
+    try {
+        showLoading(true);
+        
+        const userEmail = auth.currentUser?.email;
+        console.log('👤 Current user email:', userEmail);
+        
+        if (!userEmail) {
+            console.error('❌ No authenticated user found');
+            throw new Error('No authenticated user');
+        }
+        
+        // Get player name
+        const players = getPlayersFromCache();
+        console.log('📋 Players from cache:', players.length);
+        
+        const selectedPlayer = players.find(p => p.id === selectedModalPlayerId);
+        console.log('🎯 Found selected player:', selectedPlayer);
+        
+        if (!selectedPlayer) {
+            console.error('❌ Selected player not found in cache');
+            throw new Error('Selected player not found');
+        }
+        
+        console.log('🔄 Updating user with player info:', {
+            userEmail,
+            playerId: selectedModalPlayerId,
+            playerName: selectedPlayer.name
+        });
+        
+        // Update user with player info
+        await updateUserWithPlayerInfo(userEmail, selectedModalPlayerId, selectedPlayer.name);
+        
+        console.log('✅ Player info updated successfully');
+        showSuccessToast('חיבור הושלם', 'השחקן נבחר בהצלחה!');
+        
+        // Update UI
+        const userPlayerNameElement = document.getElementById('user-player-name');
+        console.log('🔍 Found user player name element:', !!userPlayerNameElement);
+        
+        if (userPlayerNameElement) {
+            console.log('🔄 Updating UI with new player name');
+            await loadUserPlayerName(userEmail, userPlayerNameElement);
+        }
+        
+        closePlayerSelectionModal();
+        console.log('✅ Modal closed, process complete');
+    } catch (error) {
+        console.error('❌ Error in handleModalPlayerSelection:', error);
+        console.error('Error stack:', error.stack);
+        showErrorToast('שגיאה', 'אירעה שגיאה בחיבור השחקן: ' + error.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
 // Show login interface
 function showLoginInterface() {
     if (authSection) {
@@ -1396,6 +2083,10 @@ function showLoginInterface() {
         adminMain.style.display = 'none';
         adminMain.classList.add('hidden');
     }
+    if (playerSelectionSection) {
+        playerSelectionSection.style.display = 'none';
+        playerSelectionSection.classList.add('hidden');
+    }
     
     // Clear user info
     const userEmailElement = document.getElementById('user-email');
@@ -1404,6 +2095,285 @@ function showLoginInterface() {
     }
     
     console.log('Login interface shown');
+}
+
+// Player Selection Functions
+async function checkIfUserNeedsPlayerSelection(userEmail) {
+    try {
+        if (DEMO_MODE) {
+            // In demo mode, simulate that user needs player selection
+            return true;
+        }
+
+        // Get user from cache first
+        const admins = await loadAllAdminsFromCache();
+        const userRecord = admins.find(admin => admin.email === userEmail);
+        
+        if (!userRecord) {
+            console.log('User not found in cache, checking Firestore');
+            const userDoc = await getDoc(doc(db, 'admins', userEmail));
+            if (!userDoc.exists()) {
+                console.log('User does not exist, needs player selection');
+                return true;
+            }
+            const userData = userDoc.data();
+            
+            // Skip player selection for super-admin and admin roles
+            if (userData.role === 'super-admin' || userData.role === 'admin') {
+                console.log('User is admin/super-admin, skipping player selection');
+                return false;
+            }
+            
+            return !userData.playerId || !userData.isRegistered;
+        }
+        
+        // Skip player selection for super-admin and admin roles
+        if (userRecord.role === 'super-admin' || userRecord.role === 'admin') {
+            console.log('User is admin/super-admin, skipping player selection');
+            return false;
+        }
+        
+        return !userRecord.playerId || !userRecord.isRegistered;
+    } catch (error) {
+        console.error('Error checking if user needs player selection:', error);
+        return true; // Default to needing selection on error
+    }
+}
+
+function showPlayerSelectionInterface(user) {
+    // Hide other sections
+    if (authSection) {
+        authSection.style.display = 'none';
+        authSection.classList.add('hidden');
+    }
+    if (adminMain) {
+        adminMain.style.display = 'none';
+        adminMain.classList.add('hidden');
+    }
+    
+    // Show player selection section
+    const playerSelectionSection = document.getElementById('player-selection-section');
+    if (playerSelectionSection) {
+        playerSelectionSection.style.display = 'block';
+        playerSelectionSection.classList.remove('hidden');
+    }
+    
+    // Set page background
+    document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+    
+    // Load players and setup interface
+    loadPlayersForSelection();
+    setupPlayerSelectionEventListeners();
+    
+    console.log('Player selection interface shown for:', user.email);
+}
+
+async function loadPlayersForSelection() {
+    try {
+        showLoading(true);
+        
+        let players = [];
+        if (DEMO_MODE) {
+            players = loadDemoPlayers();
+        } else {
+            // Wait for cache to be ready
+            await waitForCacheInitialization('players');
+            players = getPlayersFromCache();
+        }
+        
+        renderPlayerSelectionGrid(players);
+        updatePlayerSelectionCount(players.length);
+        
+    } catch (error) {
+        console.error('Error loading players for selection:', error);
+        showErrorToast('שגיאה בטעינת שחקנים', 'לא ניתן לטעון את רשימת השחקנים');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function renderPlayerSelectionGrid(players) {
+    const grid = document.getElementById('player-selection-grid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    if (!players || players.length === 0) {
+        grid.innerHTML = '<div class="no-players-message">אין שחקנים זמינים לבחירה</div>';
+        return;
+    }
+    
+    players.forEach(player => {
+        const playerCard = document.createElement('div');
+        playerCard.className = 'player-selection-card';
+        playerCard.dataset.playerId = player.id;
+        
+        playerCard.innerHTML = `
+            <div class="player-name">${player.name}</div>
+            <div class="player-info">
+                ${player.phone ? `📞 ${player.phone}<br>` : ''}
+                ${player.email ? `📧 ${player.email}<br>` : ''}
+                ${player.position ? `⚽ ${player.position}` : ''}
+            </div>
+        `;
+        
+        playerCard.addEventListener('click', () => selectPlayer(player.id));
+        grid.appendChild(playerCard);
+    });
+}
+
+function selectPlayer(playerId) {
+    // Remove previous selection
+    const allCards = document.querySelectorAll('.player-selection-card');
+    allCards.forEach(card => card.classList.remove('selected'));
+    
+    // Select new player
+    const selectedCard = document.querySelector(`[data-player-id="${playerId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+    
+    // Enable confirm button
+    const confirmBtn = document.getElementById('confirm-player-selection-btn');
+    if (confirmBtn) {
+        confirmBtn.disabled = false;
+    }
+    
+    // Store selected player ID
+    window.selectedPlayerId = playerId;
+}
+
+function setupPlayerSelectionEventListeners() {
+    // Search functionality
+    const searchInput = document.getElementById('player-selection-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', handlePlayerSelectionSearch);
+    }
+    
+    // Confirm button
+    const confirmBtn = document.getElementById('confirm-player-selection-btn');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', confirmPlayerSelection);
+    }
+}
+
+function handlePlayerSelectionSearch(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    const allCards = document.querySelectorAll('.player-selection-card');
+    
+    let visibleCount = 0;
+    
+    allCards.forEach(card => {
+        const playerName = card.querySelector('.player-name').textContent.toLowerCase();
+        const playerInfo = card.querySelector('.player-info').textContent.toLowerCase();
+        
+        if (playerName.includes(searchTerm) || playerInfo.includes(searchTerm)) {
+            card.style.display = 'block';
+            visibleCount++;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    updatePlayerSelectionCount(visibleCount);
+}
+
+function updatePlayerSelectionCount(count) {
+    const countElement = document.getElementById('player-selection-count');
+    if (countElement) {
+        countElement.textContent = `נמצאו: ${count} שחקנים`;
+    }
+}
+
+async function confirmPlayerSelection() {
+    if (!window.selectedPlayerId) {
+        showErrorToast('בחירת שחקן', 'אנא בחר שחקן מהרשימה');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const userEmail = auth.currentUser?.email;
+        if (!userEmail) {
+            throw new Error('No authenticated user');
+        }
+        
+        // Connect user to player
+        await connectUserToPlayer(userEmail, window.selectedPlayerId);
+        
+        showSuccessToast('חיבור הושלם', 'השחקן נבחר בהצלחה!');
+        
+        // Show main interface
+        setTimeout(() => {
+            showMainAdminInterface(auth.currentUser);
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Error confirming player selection:', error);
+        showErrorToast('שגיאה בחיבור', 'לא ניתן לחבר את המשתמש לשחקן');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function connectUserToPlayer(userEmail, playerId) {
+    try {
+        if (DEMO_MODE) {
+            console.log('Demo mode: Connecting user', userEmail, 'to player', playerId);
+            return;
+        }
+        
+        // Update user document with playerId
+        await updateDoc(doc(db, 'admins', userEmail), {
+            playerId: playerId,
+            playerSelectionCompleted: true,
+            playerSelectionDate: new Date()
+        });
+        
+        console.log('User connected to player successfully:', userEmail, '->', playerId);
+        
+    } catch (error) {
+        console.error('Error connecting user to player:', error);
+        throw error;
+    }
+}
+
+async function logout() {
+    if (DEMO_MODE) {
+        console.log('Demo mode: Would log out user');
+        showLoginInterface();
+        return;
+    }
+
+    try {
+        if (!auth) {
+            console.error('Auth not initialized');
+            showErrorToast('שגיאה', 'מערכת האימות לא מוכנה');
+            return;
+        }
+
+        // Clean up any active listeners
+        cleanupRealtimeListeners();
+        
+        // Clear cache
+        invalidateCache('all');
+        
+        // Sign out from Firebase
+        await signOut(auth);
+        console.log('User signed out successfully');
+        
+        // Reset UI
+        showLoginInterface();
+        showSuccessToast('התנתקות', 'התנתקת בהצלחה');
+        
+        // Clear any game state
+        resetGameDayState();
+        clearAllUIElements();
+    } catch (error) {
+        console.error('Error signing out:', error);
+        showErrorToast('שגיאה', 'אירעה שגיאה בהתנתקות');
+    }
 }
 
 // Make functions globally available
@@ -1851,6 +2821,104 @@ function updatePlayerSelection() {
         const lastChecked = Array.from(checkedBoxes)[checkedBoxes.length - 1];
         lastChecked.checked = false;
         updatePlayerSelection();
+    }
+}
+
+async function handleUserPlayerConnection() {
+    console.log('handleUserPlayerConnection called');
+    if (!window.selectedPlayerId) {
+        showErrorToast('בחירת שחקן', 'אנא בחר שחקן מהרשימה');
+        return;
+    }
+    try {
+        showLoading(true);
+        const userEmail = auth && auth.currentUser ? auth.currentUser.email : null;
+        if (!userEmail) {
+            showErrorToast('שגיאה', 'לא נמצא משתמש מחובר.');
+            return;
+        }
+        // Get selected player info
+        await waitForCacheInitialization('players');
+        const players = getPlayersFromCache();
+        const selectedPlayer = players.find(p => p.id === window.selectedPlayerId);
+        if (!selectedPlayer) {
+            showErrorToast('שגיאה', 'לא נמצא שחקן תואם.');
+            return;
+        }
+        // Update user document in DB
+        await updateUserWithPlayerInfo(userEmail, selectedPlayer.id, selectedPlayer.name);
+        showSuccessToast('חיבור הושלם', 'המשתמש חובר לשחקן בהצלחה!');
+        setTimeout(() => {
+            showMainAdminInterface(auth.currentUser);
+        }, 1000);
+    } catch (error) {
+        console.error('Error connecting user to player:', error);
+        showErrorToast('שגיאה', error.message || 'לא ניתן לחבר את המשתמש לשחקן');
+    } finally {
+        showLoading(false);
+    }
+}
+window.handleUserPlayerConnection = handleUserPlayerConnection;
+
+async function updateUserWithPlayerInfo(userEmail, playerId, playerName) {
+    console.log('🚀 Starting updateUserWithPlayerInfo:', { userEmail, playerId, playerName });
+    
+    try {
+        // Query for the user document by email field
+        const q = query(collection(db, 'admins'), where('email', '==', userEmail));
+        console.log('📄 Querying for user document with email:', userEmail);
+        
+        const querySnapshot = await getDocs(q);
+        console.log('📥 Found matching documents:', querySnapshot.size);
+        
+        if (querySnapshot.empty) {
+            console.error('❌ No user document found for email:', userEmail);
+            throw new Error('User document not found');
+        }
+        
+        // Get the first matching document
+        const userDoc = querySnapshot.docs[0];
+        const currentData = userDoc.data();
+        console.log('📋 Current user data:', JSON.stringify(currentData, null, 2));
+        
+        // Prepare update data
+        const updateData = {
+            playerId: playerId,
+            playerName: playerName,
+            isRegistered: true,
+            registeredAt: currentData.registeredAt || new Date(),
+            lastLoginAt: new Date(),
+            role: currentData.role || 'user',
+            email: userEmail,
+            addedAt: currentData.addedAt || new Date(),
+            addedBy: currentData.addedBy || 'system'
+        };
+        
+        console.log('📝 Update data prepared:', JSON.stringify(updateData, null, 2));
+        
+        // Update the document using its actual ID
+        const userDocRef = doc(db, 'admins', userDoc.id);
+        console.log('🔄 Updating document with ID:', userDoc.id);
+        await updateDoc(userDocRef, updateData);
+        
+        // Don't change the role if it exists
+        if (currentData.role) {
+            console.log('👑 Preserving existing role:', currentData.role);
+            currentUserRole = currentData.role;
+            window.currentUserRole = currentData.role;
+        }
+        
+        console.log('✅ User info updated successfully for:', userEmail);
+        
+        // Verify the update
+        const updatedDoc = await getDoc(userDocRef);
+        const updatedData = updatedDoc.data();
+        console.log('📋 Updated user data:', JSON.stringify(updatedData, null, 2));
+        
+    } catch (error) {
+        console.error('❌ Error updating user info:', error);
+        console.error('Error stack:', error.stack);
+        throw new Error('Failed to update user info: ' + error.message);
     }
 }
 
@@ -2730,6 +3798,140 @@ function getTeamDisplayName(teamLetter) {
 
 // Step 4: Mini-Games Management
 function addMiniGame() {
+    // Show team selection modal instead of directly adding game
+    showTeamSelectionModal();
+}
+
+// Show team selection modal
+function showTeamSelectionModal() {
+    const modal = document.getElementById('team-selection-modal');
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    const confirmBtn = document.getElementById('confirm-team-selection');
+    
+    // Populate team options
+    populateTeamSelectionOptions();
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Reset form
+    teamASelect.value = '';
+    teamBSelect.value = '';
+    confirmBtn.disabled = true;
+    
+    // Setup event listeners if not already done
+    setupTeamSelectionEventListeners();
+}
+
+// Populate team selection options
+function populateTeamSelectionOptions() {
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    
+    // Clear existing options (except first one)
+    teamASelect.innerHTML = '<option value="">-- בחר קבוצה --</option>';
+    teamBSelect.innerHTML = '<option value="">-- בחר קבוצה --</option>';
+    
+    // Get available teams from current game day
+    const availableTeams = teams ? Object.keys(teams) : ['A', 'B', 'C'];
+    
+    availableTeams.forEach(teamLetter => {
+        const teamName = getTeamDisplayName(teamLetter);
+        const optionA = document.createElement('option');
+        optionA.value = teamLetter;
+        optionA.textContent = teamName;
+        teamASelect.appendChild(optionA);
+        
+        const optionB = document.createElement('option');
+        optionB.value = teamLetter;
+        optionB.textContent = teamName;
+        teamBSelect.appendChild(optionB);
+    });
+}
+
+// Setup team selection event listeners
+function setupTeamSelectionEventListeners() {
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    const confirmBtn = document.getElementById('confirm-team-selection');
+    const cancelBtn = document.getElementById('cancel-team-selection');
+    const closeBtn = document.getElementById('close-team-selection');
+    
+    // Remove existing listeners to avoid duplicates
+    teamASelect.removeEventListener('change', validateTeamSelection);
+    teamBSelect.removeEventListener('change', validateTeamSelection);
+    confirmBtn.removeEventListener('click', confirmNewGame);
+    cancelBtn.removeEventListener('click', closeTeamSelectionModal);
+    closeBtn.removeEventListener('click', closeTeamSelectionModal);
+    
+    // Add new listeners
+    teamASelect.addEventListener('change', validateTeamSelection);
+    teamBSelect.addEventListener('change', validateTeamSelection);
+    confirmBtn.addEventListener('click', confirmNewGame);
+    cancelBtn.addEventListener('click', closeTeamSelectionModal);
+    closeBtn.addEventListener('click', closeTeamSelectionModal);
+}
+
+// Validate team selection
+function validateTeamSelection() {
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    const confirmBtn = document.getElementById('confirm-team-selection');
+    
+    const teamA = teamASelect.value;
+    const teamB = teamBSelect.value;
+    
+    // Enable confirm button only if both teams are selected and different
+    confirmBtn.disabled = !teamA || !teamB || teamA === teamB;
+    
+    // Update second team options to exclude selected team A
+    updateSecondTeamOptions();
+}
+
+// Update second team options to exclude selected team A
+function updateSecondTeamOptions() {
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    
+    const selectedTeamA = teamASelect.value;
+    const currentTeamB = teamBSelect.value;
+    
+    // Clear and repopulate team B options
+    teamBSelect.innerHTML = '<option value="">-- בחר קבוצה --</option>';
+    
+    const availableTeams = teams ? Object.keys(teams) : ['A', 'B', 'C'];
+    
+    availableTeams.forEach(teamLetter => {
+        if (teamLetter !== selectedTeamA) {
+            const teamName = getTeamDisplayName(teamLetter);
+            const option = document.createElement('option');
+            option.value = teamLetter;
+            option.textContent = teamName;
+            teamBSelect.appendChild(option);
+        }
+    });
+    
+    // Restore team B selection if it's still valid
+    if (currentTeamB && currentTeamB !== selectedTeamA) {
+        teamBSelect.value = currentTeamB;
+    }
+}
+
+// Confirm new game creation
+function confirmNewGame() {
+    const teamASelect = document.getElementById('team-a-select');
+    const teamBSelect = document.getElementById('team-b-select');
+    
+    const teamA = teamASelect.value;
+    const teamB = teamBSelect.value;
+    
+    if (!teamA || !teamB || teamA === teamB) {
+        alert('אנא בחר שתי קבוצות שונות');
+        return;
+    }
+    
+    // Create the mini game
     const miniGameId = `game-${Date.now()}`;
     
     // First, ensure existing games have their numbers assigned if they don't have them
@@ -2745,9 +3947,9 @@ function addMiniGame() {
     
     const miniGame = {
         id: miniGameId,
-        gameNumber: gameNumber, // Store the game number
-        teamA: '',
-        teamB: '',
+        gameNumber: gameNumber,
+        teamA: teamA,
+        teamB: teamB,
         scoreA: 0,
         scoreB: 0,
         scorers: [],
@@ -2757,14 +3959,183 @@ function addMiniGame() {
     // Add new game at the beginning of the array (top of the list)
     miniGames.unshift(miniGame);
     
+    // Close modal
+    closeTeamSelectionModal();
+    
     // Re-render all games to update numbering
     renderAllMiniGames();
     
     // Update stopwatch game selection dropdown
     updateTimerGameSelection();
     
-    // Update stats display (even though game is empty, it ensures the display is ready)
+    // Show stopwatch section and automatically select the new game
+    showStopwatchForGame(miniGameId);
+    
+    // Update stats display
     updateStatsDisplay();
+    
+    // Hide new game interface
+    hideNewGameInterface();
+}
+
+// Close team selection modal
+function closeTeamSelectionModal() {
+    const modal = document.getElementById('team-selection-modal');
+    modal.classList.add('hidden');
+}
+
+// Show stopwatch for specific game
+function showStopwatchForGame(gameId) {
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    const timerGameSelect = document.getElementById('timer-game-select');
+    
+    // Show stopwatch section
+    stopwatchSection.classList.remove('hidden');
+    
+    // Add live game active class to body
+    document.body.classList.add('live-game-active');
+    
+    // Select the game in dropdown
+    timerGameSelect.value = gameId;
+    
+    // Trigger change event to update stopwatch
+    timerGameSelect.dispatchEvent(new Event('change'));
+    
+    // Focus on the start button
+    const startBtn = document.getElementById('start-stop-btn');
+    if (startBtn) {
+        startBtn.focus();
+    }
+}
+
+// Hide new game interface
+function hideNewGameInterface() {
+    const newGameInterface = document.getElementById('new-game-interface');
+    newGameInterface.classList.add('hidden');
+}
+
+// Show new game interface
+function showNewGameInterface() {
+    const newGameInterface = document.getElementById('new-game-interface');
+    newGameInterface.classList.remove('hidden');
+}
+
+// Hide stopwatch section
+function hideStopwatchSection() {
+    const stopwatchSection = document.getElementById('live-stopwatch-section');
+    stopwatchSection.classList.add('hidden');
+    
+    // Remove live game active class from body
+    document.body.classList.remove('live-game-active');
+}
+
+// Initialize the new game management interface
+function initializeNewGameInterface() {
+    const addGameBtn = document.getElementById('add-mini-game-btn');
+    
+    if (addGameBtn) {
+        addGameBtn.addEventListener('click', addMiniGame);
+    }
+    
+    // Setup modal event listeners
+    setupTeamSelectionEventListeners();
+    
+    // Initially show the new game interface
+    showNewGameInterface();
+}
+
+// Lock all games during live play
+function lockAllGamesForLivePlay() {
+    console.log('Locking all games during live play');
+    
+    // Add locked state to body
+    document.body.classList.add('live-game-locked');
+    
+    // Disable all game lock/unlock buttons
+    const lockButtons = document.querySelectorAll('.lock-btn');
+    lockButtons.forEach(btn => {
+        btn.disabled = true;
+        btn.title = 'לא ניתן לפתוח נעילה במהלך משחק חי';
+    });
+    
+    // Lock all existing games
+    miniGames.forEach(game => {
+        if (!game.isLocked) {
+            game.isLocked = true;
+            game.wasAutoLocked = true; // Mark as auto-locked to distinguish from manual locks
+        }
+    });
+    
+    // Re-render games to show locked state
+    renderAllMiniGames();
+    
+    // Mark current live game visually
+    markCurrentLiveGame();
+    
+    // Disable add game button
+    const addGameBtn = document.getElementById('add-mini-game-btn');
+    if (addGameBtn) {
+        addGameBtn.disabled = true;
+        addGameBtn.title = 'לא ניתן להוסיף משחק במהלך משחק חי';
+    }
+}
+
+// Unlock all games after live play
+function unlockAllGamesAfterLivePlay() {
+    console.log('Unlocking all games after live play');
+    
+    // Remove locked state from body
+    document.body.classList.remove('live-game-locked');
+    
+    // Re-enable all game lock/unlock buttons
+    const lockButtons = document.querySelectorAll('.lock-btn');
+    lockButtons.forEach(btn => {
+        btn.disabled = false;
+        btn.title = '';
+    });
+    
+    // Handle game locking and collapsing after live play ends
+    miniGames.forEach(game => {
+        if (game.wasAutoLocked) {
+            // Keep the game locked by default after completion
+            game.wasAutoLocked = false;
+            // Game remains locked (isLocked = true)
+        }
+        
+        // Collapse all games by default after live play ends
+        game.isCollapsed = true;
+    });
+    
+    // Re-render games to show unlocked state
+    renderAllMiniGames();
+    
+    // Remove live game visual marking
+    removeCurrentLiveGameMarking();
+    
+    // Re-enable add game button
+    const addGameBtn = document.getElementById('add-mini-game-btn');
+    if (addGameBtn) {
+        addGameBtn.disabled = false;
+        addGameBtn.title = '';
+    }
+}
+
+// Mark current live game visually
+function markCurrentLiveGame() {
+    if (!stopwatchState.currentGameId) return;
+    
+    const gameContainer = document.querySelector(`[data-game-id="${stopwatchState.currentGameId}"]`);
+    if (gameContainer) {
+        gameContainer.classList.add('current-live-game');
+    }
+}
+
+// Remove live game visual marking
+function removeCurrentLiveGameMarking() {
+    const liveGameContainers = document.querySelectorAll('.current-live-game');
+    liveGameContainers.forEach(container => {
+        container.classList.remove('current-live-game');
+    });
 }
 
 function renderAllMiniGames() {
@@ -3397,11 +4768,22 @@ function toggleGameCollapse(gameId) {
 
 // Toggle game lock state
 function toggleGameLock(gameId) {
+    // Prevent toggling during live play
+    if (document.body.classList.contains('live-game-locked')) {
+        showToast('לא ניתן לשנות נעילת משחקים במהלך משחק חי', 'error');
+        return;
+    }
+    
     const miniGame = miniGames.find(g => g.id === gameId);
     if (!miniGame) return;
     
     // Toggle lock state
     miniGame.isLocked = !miniGame.isLocked;
+    
+    // Remove auto-lock flag if manually toggling
+    if (miniGame.wasAutoLocked) {
+        miniGame.wasAutoLocked = false;
+    }
     
     // Re-render the game to update UI
     renderAllMiniGames();
@@ -3785,6 +5167,7 @@ function goToStep(stepNumber) {
         // Only initialize stopwatch for live/new games, not for completed games in edit mode
         if (!isViewOnlyMode && !(isEditMode && currentGameDay && currentGameDay.status === 3)) {
             initializeStopwatch();
+            initializeNewGameInterface();
         }
         
         // Always update stats display when entering Step 4
@@ -5479,11 +6862,16 @@ async function checkForLiveGames() {
             hideDraftGamesSection();
         }
         
+        // Check and show no live game message for users
+        checkAndShowNoLiveGameMessage();
+        
     } catch (error) {
         console.error('Error checking for live and upcoming games:', error);
         hideLiveGameSection();
         hideUpcomingGamesSection();
         hideDraftGamesSection();
+        // Also check for no live game message in case of error
+        checkAndShowNoLiveGameMessage();
     }
 }
 
@@ -6309,6 +7697,9 @@ function startStopwatch() {
         stopwatchSection.classList.add('stopwatch-running');
     }
     
+    // Lock all games during live play
+    lockAllGamesForLivePlay();
+    
     // Save start time to Firestore (optional)
     saveStopwatchStartTime();
 }
@@ -6370,6 +7761,27 @@ function resumeStopwatch() {
 async function stopStopwatch() {
     console.log('Stopping stopwatch');
     
+    // Show loading immediately
+    console.log('About to show loading...');
+    showGameCompletionLoading(true);
+    console.log('Loading function called');
+    
+    // Safety timeout to prevent infinite loading (10 seconds)
+    const safetyTimeout = setTimeout(() => {
+        console.warn('Safety timeout triggered - hiding loading overlay');
+        showGameCompletionLoading(false);
+        
+        // Force hide with backup method
+        const overlay = document.getElementById('game-completion-loading');
+        if (overlay) {
+            overlay.style.display = 'none !important';
+            console.log('Force hidden loading overlay due to safety timeout');
+        }
+        
+        updateStopwatchStatus('זמן קצוב - נסה שוב');
+        showToast('הפעולה ארכה יותר מדי. נסה שוב.', 'error');
+    }, 10000);
+    
     // Calculate final duration
     const finalDuration = stopwatchState.isPaused ? 
         Math.floor(stopwatchState.pausedTime / 1000) : 
@@ -6387,7 +7799,7 @@ async function stopStopwatch() {
     
     // Update UI
     updateStopwatchControls();
-    updateStopwatchStatus('משחק הושלם');
+    updateStopwatchStatus('שומר משחק...');
     
     // Hide live goal logging interface
     hideLiveGoalLogging();
@@ -6398,13 +7810,48 @@ async function stopStopwatch() {
         stopwatchSection.classList.remove('stopwatch-running', 'stopwatch-paused');
     }
     
-    // Save final duration and goals to mini-game
-    await saveStopwatchResults(finalDuration);
+    try {
+        console.log('Starting to save stopwatch results...');
+        // Save final duration and goals to mini-game
+        await saveStopwatchResults(finalDuration);
+        console.log('Stopwatch results saved successfully');
+        
+        // Update status to completed
+        updateStopwatchStatus('משחק הושלם');
+        
+        // Show completion feedback
+        showStopwatchCompletionFeedback(finalDuration);
+        console.log('Game completion process finished successfully');
+        
+        // Note: Loading will be hidden after the UI cleanup is complete
+    } catch (error) {
+        console.error('Error saving game:', error);
+        
+        // Clear safety timeout
+        clearTimeout(safetyTimeout);
+        
+        // Hide loading on error
+        console.log('Hiding loading due to error...');
+        showGameCompletionLoading(false);
+        
+        // Force hide immediately as backup
+        const overlay = document.getElementById('game-completion-loading');
+        if (overlay) {
+            overlay.style.display = 'none !important';
+            console.log('Force hidden loading overlay on error as backup');
+        }
+        
+        // Update status to show error
+        updateStopwatchStatus('שגיאה בשמירת המשחק');
+        
+        // Show error message
+        showToast('שגיאה בשמירת המשחק. נסה שוב.', 'error');
+        
+        // Don't continue with the cleanup if save failed
+        return;
+    }
     
-    // Show completion feedback
-    showStopwatchCompletionFeedback(finalDuration);
-    
-    // Reset stopwatch and clear selection after completion
+    // Hide stopwatch and show new game interface after completion
     setTimeout(() => {
         // Reset timer display
         displayTime(0);
@@ -6434,7 +7881,28 @@ async function stopStopwatch() {
         if (startStopBtn) {
             startStopBtn.disabled = true;
         }
-    }, 2000); // Wait 2 seconds to show completion feedback first
+        
+        // Unlock all games after completion
+        unlockAllGamesAfterLivePlay();
+        
+        // Hide stopwatch and show new game interface
+        hideStopwatchSection();
+        showNewGameInterface();
+        
+        // Clear safety timeout now that everything is complete
+        clearTimeout(safetyTimeout);
+        
+        // Hide loading overlay after UI cleanup is complete
+        console.log('UI cleanup complete - hiding loading overlay...');
+        showGameCompletionLoading(false);
+        
+        // Force hide immediately as backup
+        const overlay = document.getElementById('game-completion-loading');
+        if (overlay) {
+            overlay.style.display = 'none !important';
+            console.log('Force hidden loading overlay after UI cleanup');
+        }
+    }, 3000); // Wait 3 seconds to show completion feedback first
 }
 
 // Update stopwatch display
@@ -6747,6 +8215,12 @@ async function saveStopwatchResults(durationSeconds) {
             // Save duration
             selectedGame.durationSeconds = durationSeconds;
             
+            // Lock the completed game by default
+            selectedGame.isLocked = true;
+            
+            // Collapse the completed game by default
+            selectedGame.isCollapsed = true;
+            
             // Save live goals
             selectedGame.liveGoals = [...stopwatchState.liveGoals];
             
@@ -6757,7 +8231,22 @@ async function saveStopwatchResults(durationSeconds) {
             
             // Auto-save if in live mode
             if (window.currentLiveGame) {
-                await autoSaveLiveGame();
+                console.log('Auto-saving live game to database...');
+                try {
+                    // Add timeout to prevent hanging
+                    const savePromise = autoSaveLiveGame();
+                    const timeoutPromise = new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Auto-save timeout')), 5000)
+                    );
+                    
+                    await Promise.race([savePromise, timeoutPromise]);
+                    console.log('Live game auto-save completed');
+                } catch (error) {
+                    console.warn('Auto-save failed or timed out:', error);
+                    // Continue anyway - the local game data is saved
+                }
+            } else {
+                console.log('No live game to auto-save');
             }
             
             console.log(`Saved stopwatch results for game ${stopwatchState.currentGameId}: ${durationSeconds} seconds, ${stopwatchState.liveGoals.length} goals`);
@@ -6878,6 +8367,69 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// Show/hide game completion loading
+function showGameCompletionLoading(show) {
+    console.log('showGameCompletionLoading called with:', show);
+    
+    if (show) {
+        // Create loading overlay if it doesn't exist
+        let loadingOverlay = document.getElementById('game-completion-loading');
+        if (!loadingOverlay) {
+            console.log('Creating new loading overlay');
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'game-completion-loading';
+            loadingOverlay.className = 'game-completion-loading-overlay';
+            loadingOverlay.innerHTML = `
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">שומר משחק למסד הנתונים...</div>
+                    <div class="loading-subtext">אנא המתן, אל תעזוב את הדף</div>
+                </div>
+            `;
+            document.body.appendChild(loadingOverlay);
+            console.log('Loading overlay created and added to body');
+        }
+        
+        // Show loading with a small delay to ensure DOM is updated
+        setTimeout(() => {
+            loadingOverlay.classList.add('active');
+            document.body.classList.add('game-completion-loading');
+            console.log('Loading overlay activated');
+        }, 10);
+        
+    } else {
+        console.log('Hiding loading overlay');
+        // Hide loading
+        const loadingOverlay = document.getElementById('game-completion-loading');
+        if (loadingOverlay) {
+            console.log('Found loading overlay, removing active class');
+            loadingOverlay.classList.remove('active');
+            
+            // Force hide with additional methods
+            loadingOverlay.style.opacity = '0';
+            loadingOverlay.style.visibility = 'hidden';
+            loadingOverlay.style.display = 'none';
+            
+            console.log('Loading overlay deactivated and force hidden');
+        } else {
+            console.log('Loading overlay not found!');
+        }
+        
+        // Re-enable interactions
+        document.body.classList.remove('game-completion-loading');
+        console.log('Body class removed, interactions re-enabled');
+        
+        // Additional cleanup after a short delay to ensure it's hidden
+        setTimeout(() => {
+            const overlay = document.getElementById('game-completion-loading');
+            if (overlay) {
+                overlay.remove();
+                console.log('Loading overlay completely removed from DOM');
+            }
+        }, 500);
+    }
+}
+
 // Clean up stopwatch when leaving step 4
 function cleanupStopwatch() {
     if (stopwatchState.timerInterval) {
@@ -6886,6 +8438,9 @@ function cleanupStopwatch() {
     
     // Close any open modals
     closeGoalLoggingModal();
+    
+    // Hide any loading states
+    showGameCompletionLoading(false);
     
     // Reset state
     resetStopwatchState();
@@ -8288,16 +9843,43 @@ function renderAdminsList() {
 
 // Create admin item HTML
 function createAdminItem(admin) {
+    console.log("this is admin????:", admin.role)
     const isCurrentUser = admin.email === currentUserEmail;
-    const roleText = admin.role === 'super-admin' ? 'מנהל על' : 'מנהל';
-    const roleBadgeClass = admin.role === 'super-admin' ? 'super-admin' : 'admin';
+    const roleText = admin.role === 'super-admin' ? 'מנהל על' : (admin.role === 'admin' ? 'מנהל' : 'משתמש');
+    const roleBadgeClass = admin.role === 'super-admin' ? 'super-admin' : (admin.role === 'admin' ? 'admin' : 'user');
+    
+    // Format dates for display
+    const formatDate = (date) => {
+        if (!date) return 'לא זמין';
+        const d = date.toDate ? date.toDate() : new Date(date);
+        return d.toLocaleDateString('he-IL');
+    };
+    
+    // Player association info
+    const playerInfo = admin.playerId ? 
+        `<div class="admin-player-info">
+            <span class="player-name">🏃 ${admin.playerName || 'שם לא זמין'}</span>
+            <span class="player-id">(ID: ${admin.playerId})</span>
+        </div>` : 
+        '<div class="admin-player-info">לא משויך לשחקן</div>';
+    
+    // Registration status
+    const registrationStatus = admin.isRegistered ? 
+        `<span class="registration-status registered">✅ רשום</span>` : 
+        `<span class="registration-status not-registered">⏳ לא רשום</span>`;
     
     return `
-        <div class="admin-item">
+        <div class="admin-item ${admin.role}">
             <div class="admin-info">
                 <div class="admin-email">${admin.email}</div>
                 <div class="admin-role">
                     <span class="admin-role-badge ${roleBadgeClass}">${roleText}</span>
+                    ${registrationStatus}
+                </div>
+                ${playerInfo}
+                <div class="admin-dates">
+                    <span class="date-info">נוסף: ${formatDate(admin.addedAt)}</span>
+                    ${admin.lastLoginAt ? `<span class="date-info">כניסה אחרונה: ${formatDate(admin.lastLoginAt)}</span>` : ''}
                 </div>
                 ${isCurrentUser ? '<div class="current-user-indicator">זה אתה</div>' : ''}
             </div>
