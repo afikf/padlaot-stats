@@ -1826,6 +1826,8 @@ function showMainAdminInterface(user = null) {
 async function loadUserPlayerName(email, element) {
     try {
         console.log('🔍 Loading player name for email:', email);
+        console.log('🎯 Element ID:', element.id);
+        console.log('🎯 Element class:', element.className);
         
         // Query for user document by email field
         const q = query(collection(db, 'admins'), where('email', '==', email));
@@ -1841,6 +1843,9 @@ async function loadUserPlayerName(email, element) {
                 console.log('✅ Player name found:', data.playerName);
                 element.innerHTML = `<span class="player-icon">⚽</span> ${data.playerName}`;
                 element.title = `שחקן משויך: ${data.playerName}`;
+                // Force text color to black
+                element.style.color = 'black';
+                console.log('🎨 Set color to black');
                 // Hide connect button when player is already connected
                 document.getElementById('connect-player-btn').style.display = 'none';
             } else {

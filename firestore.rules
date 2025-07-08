@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isRegisteredUser() {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isRegistered == true;
+    }
+    
+    function isOwnDocument() {
+      return isAuthenticated() && request.auth.uid == resource.id;
+    }
+    
+    // Admin documents
+    match /admins/{userId} {
+      // Anyone can read admin docs (needed for player linking)
+      allow read: if isAuthenticated();
+      
+      // Users can only write their own document
+      allow write: if isOwnDocument() || isAdmin();
+      
+      // Creation is allowed for new users
+      allow create: if isAuthenticated() && 
+                      request.auth.uid == userId &&
+                      request.resource.data.role == 'user' &&
+                      request.resource.data.isRegistered == false;
+    }
+    
+    // Player documents
+    match /players/{playerId} {
+      // Anyone can read player data
+      allow read: if isAuthenticated();
+      
+      // Only admins can create/delete players
+      allow create, delete: if isAdmin();
+      
+      // Updates allowed by admins or during player linking
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        !exists(resource.data.uid) &&  // Player not already linked
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])  // Only updating uid field
+      );
+    }
+    
+    // Game days collection
+    match /gameDays/{dayId} {
+      // Only registered users can read game data
+      allow read: if isRegisteredUser();
+      
+      // Only admins can write game data
+      allow write: if isAdmin();
+    }
+  }
+} 
