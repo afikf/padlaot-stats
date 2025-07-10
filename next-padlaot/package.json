@@ -1,0 +1,42 @@
+{
+  "name": "next-padlaot",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@firebase/app": "^0.13.2",
+    "@firebase/auth": "^1.10.8",
+    "@firebase/firestore": "^4.8.0",
+    "@firebase/storage": "^0.13.14",
+    "@heroicons/react": "^2.2.0",
+    "@mui/icons-material": "5.15.11",
+    "@mui/material": "^7.2.0",
+    "@mui/system": "^7.2.0",
+    "@types/js-cookie": "^3.0.6",
+    "firebase": "^11.10.0",
+    "firebase-admin": "^13.4.0",
+    "js-cookie": "^3.0.5",
+    "next": "15.3.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/firebase": "^3.2.3",
+    "@types/node": "^24.0.12",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
