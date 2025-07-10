@@ -13,13 +13,11 @@ const ToastContext = createContext<ToastContextType>({
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: ToastType }>>([]);
-  const [lastId, setLastId] = useState(0);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = lastId + 1;
-    setLastId(id);
+    const id = Date.now() + Math.random();
     setToasts(current => [...current, { id, message, type }]);
-  }, [lastId]);
+  }, []);
 
   const handleClose = (id: number) => {
     setToasts(current => current.filter(toast => toast.id !== id));

@@ -1,92 +1,85 @@
-'use client';
+"use client";
 
-import { Box, Container, Typography, Paper, Button } from '@mui/material';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState } from "react";
+import { Box, Container, Tabs, Tab, Switch, FormControlLabel, Paper } from "@mui/material";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import AuthGuard from "@/components/auth/AuthGuard";
+import Header from "@/components/dashboard/Header";
+import GameNightsAccordion from "@/components/dashboard/GameNightsAccordion";
+import PlayerStatsTable from "@/components/dashboard/PlayerStatsTable";
+import ShowMyStatsSwitch from "@/components/dashboard/ShowMyStatsSwitch";
 
 const theme = createTheme({
-  direction: 'rtl',
+  direction: "rtl",
   palette: {
     primary: {
-      main: '#2563eb',
-      light: '#3b82f6',
-      dark: '#1d4ed8',
-      contrastText: '#ffffff',
+      main: "#2563eb",
+      light: "#3b82f6",
+      dark: "#1d4ed8",
+      contrastText: "#ffffff",
     },
     background: {
-      default: '#f0f9ff',
-      paper: '#ffffff',
+      default: "#f0f9ff",
+      paper: "#ffffff",
     },
   },
   typography: {
-    fontFamily: 'Assistant, sans-serif',
+    fontFamily: "Assistant, sans-serif",
   },
 });
 
 export default function DashboardPage() {
-  const { logout } = useAuth();
-
-  const handleLogout = async () => {
-    await logout();
-    // Redirect handled in logout
-  };
+  const [tab, setTab] = useState(0);
+  const [showMyStatsOnly, setShowMyStatsOnly] = useState(false);
 
   return (
-    <ThemeProvider theme={theme}>
-      <Box 
-        sx={{ 
-          minHeight: '100vh',
-          py: 8,
-          background: 'linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0f9ff 100%)',
-        }}
-      >
-        {/* Logout button at the top right */}
-        <Box sx={{ position: 'absolute', top: 24, right: 24, zIndex: 10 }}>
-          <Button variant="outlined" color="primary" onClick={handleLogout}>
-            התנתק
-          </Button>
+    <AuthGuard requireAuth requirePlayerLink>
+      <ThemeProvider theme={theme}>
+        <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0f9ff 100%)" }}>
+          <Container maxWidth="lg" sx={{ pt: 4 }}>
+            {/* Header */}
+            <Header />
+
+            {/* Show My Stats Only Toggle */}
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showMyStatsOnly}
+                    onChange={e => setShowMyStatsOnly(e.target.checked)}
+                    color="primary"
+                  />
+                }
+                label="הצג רק את הסטטיסטיקה שלי"
+                labelPlacement="start"
+              />
+            </Box>
+
+            {/* Tabs */}
+            <Paper elevation={1} sx={{ borderRadius: 3, p: 2 }}>
+              <Tabs
+                value={tab}
+                onChange={(_, v) => setTab(v)}
+                indicatorColor="primary"
+                textColor="primary"
+                variant="fullWidth"
+                sx={{ mb: 2 }}
+              >
+                <Tab label="ערבי משחקים" />
+                <Tab label="סטטיסטיקת שחקנים" />
+              </Tabs>
+
+              {/* Tab Panels */}
+              <Box hidden={tab !== 0}>
+                <GameNightsAccordion showMyStatsOnly={showMyStatsOnly} />
+              </Box>
+              <Box hidden={tab !== 1}>
+                <PlayerStatsTable showMyStatsOnly={showMyStatsOnly} />
+              </Box>
+            </Paper>
+          </Container>
         </Box>
-        <Container maxWidth="lg">
-          <Paper
-            elevation={0}
-            sx={{
-              p: 6,
-              textAlign: 'center',
-              borderRadius: 4,
-              border: '1px solid',
-              borderColor: 'divider',
-              background: 'rgba(255, 255, 255, 0.8)',
-              backdropFilter: 'blur(12px)',
-              boxShadow: '0 8px 32px -4px rgba(37, 99, 235, 0.1)',
-            }}
-          >
-            <Typography 
-              variant="h1" 
-              sx={{ 
-                fontSize: '3rem',
-                fontWeight: 700,
-                background: 'linear-gradient(45deg, #2563eb, #3b82f6)',
-                backgroundClip: 'text',
-                color: 'transparent',
-                mb: 3,
-              }}
-            >
-              !בקרוב
-            </Typography>
-            <Typography 
-              variant="h5"
-              sx={{ 
-                color: 'text.secondary',
-                maxWidth: '600px',
-                mx: 'auto',
-                lineHeight: 1.6,
-              }}
-            >
-              אנחנו עובדים על יצירת חווית משתמש מדהימה עבורך. הדשבורד יהיה זמין בקרוב!
-            </Typography>
-          </Paper>
-        </Container>
-      </Box>
-    </ThemeProvider>
+      </ThemeProvider>
+    </AuthGuard>
   );
 } 

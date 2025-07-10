@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
-import { db } from './config';
+import { db, auth } from './config';
 
 export interface UserData {
   email: string;
@@ -12,6 +12,10 @@ export interface UserData {
 
 export async function getUserData(email: string): Promise<UserData | null> {
   try {
+    // Debug logging
+    console.log('Firebase project ID:', db.app.options.projectId);
+    console.log('Current user:', auth.currentUser);
+    console.log('Fetching user doc for email:', email);
     const userDoc = await getDoc(doc(db, 'users', email));
     
     if (!userDoc.exists()) {

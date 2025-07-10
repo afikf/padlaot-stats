@@ -2,6 +2,9 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { Assistant } from 'next/font/google';
 import './globals.css';
+import MUILocalizationProvider from '@/components/MUILocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import ThemeRegistry from '@/components/ThemeRegistry';
 
 const assistant = Assistant({
   subsets: ['hebrew', 'latin'],
@@ -20,13 +23,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="he" dir="rtl" className={assistant.className}>
+    <html lang="he" className={assistant.className}>
       <body>
-        <AuthProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeRegistry>
+          <MUILocalizationProvider>
+            <AuthProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </AuthProvider>
+          </MUILocalizationProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );
