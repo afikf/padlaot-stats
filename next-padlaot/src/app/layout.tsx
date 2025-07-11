@@ -1,4 +1,5 @@
 import { AuthProvider } from '@/contexts/AuthContext';
+import { AdminProvider } from '@/contexts/AdminContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { Assistant } from 'next/font/google';
 import './globals.css';
@@ -28,9 +29,11 @@ export default function RootLayout({
         <ThemeRegistry>
           <MUILocalizationProvider>
             <AuthProvider>
-              <ToastProvider>
-                {children}
-              </ToastProvider>
+              <AdminProvider>
+                <ToastProvider>
+                  {children}
+                </ToastProvider>
+              </AdminProvider>
             </AuthProvider>
           </MUILocalizationProvider>
         </ThemeRegistry>

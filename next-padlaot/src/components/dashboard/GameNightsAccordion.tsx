@@ -5,7 +5,7 @@ import { useGameNightsCache } from '@/hooks/useGameNightsCache';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  Box, CircularProgress, Typography, Accordion, AccordionSummary, AccordionDetails, Divider, Stack
+  Box, CircularProgress, Typography, Accordion, AccordionSummary, AccordionDetails, Divider, Stack, Chip
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
@@ -32,6 +32,26 @@ function getTeamDisplayName(night: any, teamKey: string, players: any[]) {
     return `קבוצת ${firstPlayerName}`;
   }
   return 'קבוצה';
+}
+
+function getStatusLabel(status: number | string) {
+  // Handle both numeric and string status for backward compatibility
+  const statusNum = typeof status === 'string' ? parseInt(status) : status;
+  
+  switch (statusNum) {
+    case 0:
+      return { label: 'טיוטה', color: 'default' as const };
+    case 1:
+      return { label: 'עתידי', color: 'warning' as const };
+    case 2:
+      return { label: 'חי', color: 'error' as const };
+    case 3:
+      return { label: 'הושלם', color: 'success' as const };
+    case 4:
+      return { label: 'לא הושלם', color: 'error' as const };
+    default:
+      return { label: 'לא ידוע', color: 'default' as const };
+  }
 }
 
 export default function GameNightsAccordion({ showMyStatsOnly }: { showMyStatsOnly?: boolean }) {
@@ -84,11 +104,21 @@ export default function GameNightsAccordion({ showMyStatsOnly }: { showMyStatsOn
         </Box>
       ) : (
         <Box>
-          {filteredNights.map((night) => (
-            <Accordion key={night.id} sx={{ mb: 2, borderRadius: 2 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography fontWeight={600}>{formatDate(night.date)}</Typography>
-              </AccordionSummary>
+          {filteredNights.map((night) => {
+            const statusInfo = getStatusLabel(night.status || 'draft');
+            return (
+              <Accordion key={night.id} sx={{ mb: 2, borderRadius: 2 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                    <Typography fontWeight={600}>{formatDate(night.date)}</Typography>
+                    <Chip 
+                      label={statusInfo.label} 
+                      color={statusInfo.color} 
+                      size="small" 
+                      variant="outlined"
+                    />
+                  </Box>
+                </AccordionSummary>
               <AccordionDetails>
                 {Array.isArray(night.miniGames) && night.miniGames.length > 0 ? (
                   night.miniGames.map((mg: any, idx: number) => {
@@ -140,7 +170,8 @@ export default function GameNightsAccordion({ showMyStatsOnly }: { showMyStatsOn
                 )}
               </AccordionDetails>
             </Accordion>
-          ))}
+          );
+        })}
         </Box>
       )}
     </>

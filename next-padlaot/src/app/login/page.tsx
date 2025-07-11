@@ -32,7 +32,8 @@ export default function LoginPage() {
             sameSite: 'strict'
           });
 
-          const userData = await getUserData(user.email);
+          // Use UID for user data lookup
+          const userData = await getUserData(user.uid);
           console.log('User data:', userData);
           
           // Redirect based on user data
@@ -62,7 +63,7 @@ export default function LoginPage() {
       
       // Sign in with Google
       const result = await signInWithPopup(auth, googleProvider);
-      const { email } = result.user;
+      const { email, uid } = result.user;
       console.log('Google login successful:', email);
 
       if (!email) {
@@ -79,14 +80,14 @@ export default function LoginPage() {
         sameSite: 'strict'
       });
 
-      // Handle user data
-      const existingUser = await getUserData(email);
+      // Use UID for user data lookup
+      const existingUser = await getUserData(uid);
       console.log('User data fetched:', existingUser);
       
       if (!existingUser) {
-        // Create new user
+        // Create new user with UID
         console.log('Creating new user...');
-        await createUser(email);
+        await createUser(uid, email);
         showToast('ברוך הבא! נא בחר שחקן', 'success');
         window.location.href = '/select-player';
       } else if (!existingUser.playerId) {

@@ -4,10 +4,15 @@ import { useState } from "react";
 import { Box, Container, Tabs, Tab, Switch, FormControlLabel, Paper } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import AuthGuard from "@/components/auth/AuthGuard";
-import Header from "@/components/dashboard/Header";
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import Header from '@/components/Header';
 import GameNightsAccordion from "@/components/dashboard/GameNightsAccordion";
 import PlayerStatsTable from "@/components/dashboard/PlayerStatsTable";
 import ShowMyStatsSwitch from "@/components/dashboard/ShowMyStatsSwitch";
+import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import { Fade, Divider } from '@mui/material';
 
 const theme = createTheme({
   direction: "rtl",
@@ -31,15 +36,80 @@ const theme = createTheme({
 export default function DashboardPage() {
   const [tab, setTab] = useState(0);
   const [showMyStatsOnly, setShowMyStatsOnly] = useState(false);
+  const { user, userData, logout } = useAuth();
+  const router = useRouter();
+
+  console.log('user:', user);
+
+  const tabItems = [
+    { label: 'ערבי משחקים', icon: <SportsSoccerIcon sx={{ mr: 1, color: '#7c3aed' }} /> },
+    { label: 'סטטיסטיקת שחקנים', icon: <LeaderboardIcon sx={{ mr: 1, color: '#06b6d4' }} /> },
+  ];
 
   return (
     <AuthGuard requireAuth requirePlayerLink>
       <ThemeProvider theme={theme}>
-        <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #ffffff 50%, #f0f9ff 100%)" }}>
+        <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 40%, #f0abfc 100%)" }}>
           <Container maxWidth="lg" sx={{ pt: 4 }}>
             {/* Header */}
-            <Header />
-
+            <Header
+              title="דשבורד פדלאות"
+              logoSrc="/logo.jpeg"
+              navButtonLabel="פאנל ניהול"
+              onNavButtonClick={() => router.push('/admin')}
+              userEmail={user?.email || ''}
+              userName={userData?.playerName}
+              userAvatarUrl={user?.photoURL || ''}
+              onLogout={logout}
+              tabs={
+                <Tabs
+                  value={tab}
+                  onChange={(_, v) => setTab(v)}
+                  textColor="primary"
+                  indicatorColor="secondary"
+                  variant="fullWidth"
+                  sx={{
+                    minHeight: 56,
+                    bgcolor: 'rgba(248,250,252,0.85)',
+                    borderRadius: 3,
+                    boxShadow: '0 2px 8px -2px #a5b4fc33',
+                    mb: 2,
+                    fontFamily: 'Assistant, Nunito, sans-serif',
+                  }}
+                  TabIndicatorProps={{
+                    style: {
+                      height: 5,
+                      borderRadius: 3,
+                      background: 'linear-gradient(90deg, #7c3aed 0%, #06b6d4 100%)',
+                      transition: 'all 0.3s cubic-bezier(.4,2,.6,1)',
+                    },
+                  }}
+                >
+                  {tabItems.map((item, idx) => (
+                    <Tab
+                      key={item.label}
+                      label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>{item.icon}{item.label}</Box>}
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: '1.1rem',
+                        minWidth: 140,
+                        borderRadius: 2,
+                        color: tab === idx ? '#7c3aed' : '#334155',
+                        transition: 'all 0.2s',
+                        textTransform: 'none',
+                        letterSpacing: 0.5,
+                        px: 3,
+                        py: 1.5,
+                        '&:hover': {
+                          background: 'rgba(124,58,237,0.08)',
+                          color: '#06b6d4',
+                        },
+                      }}
+                    />
+                  ))}
+                </Tabs>
+              }
+            />
             {/* Show My Stats Only Toggle */}
             <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
               <FormControlLabel
@@ -54,29 +124,13 @@ export default function DashboardPage() {
                 labelPlacement="start"
               />
             </Box>
-
-            {/* Tabs */}
-            <Paper elevation={1} sx={{ borderRadius: 3, p: 2 }}>
-              <Tabs
-                value={tab}
-                onChange={(_, v) => setTab(v)}
-                indicatorColor="primary"
-                textColor="primary"
-                variant="fullWidth"
-                sx={{ mb: 2 }}
-              >
-                <Tab label="ערבי משחקים" />
-                <Tab label="סטטיסטיקת שחקנים" />
-              </Tabs>
-
-              {/* Tab Panels */}
-              <Box hidden={tab !== 0}>
-                <GameNightsAccordion showMyStatsOnly={showMyStatsOnly} />
+            {/* Tab Panels */}
+            <Fade in timeout={500}>
+              <Box>
+                {tab === 0 && <GameNightsAccordion showMyStatsOnly={showMyStatsOnly} />}
+                {tab === 1 && <PlayerStatsTable showMyStatsOnly={showMyStatsOnly} />}
               </Box>
-              <Box hidden={tab !== 1}>
-                <PlayerStatsTable showMyStatsOnly={showMyStatsOnly} />
-              </Box>
-            </Paper>
+            </Fade>
           </Container>
         </Box>
       </ThemeProvider>

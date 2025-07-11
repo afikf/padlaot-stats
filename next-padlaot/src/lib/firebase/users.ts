@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase
 import { db, auth } from './config';
 
 export interface UserData {
+  uid: string;
   email: string;
   role: 'admin' | 'user';
   playerId?: string;
@@ -10,18 +11,12 @@ export interface UserData {
   updatedAt: number;
 }
 
-export async function getUserData(email: string): Promise<UserData | null> {
+export async function getUserData(uid: string): Promise<UserData | null> {
   try {
-    // Debug logging
-    console.log('Firebase project ID:', db.app.options.projectId);
-    console.log('Current user:', auth.currentUser);
-    console.log('Fetching user doc for email:', email);
-    const userDoc = await getDoc(doc(db, 'users', email));
-    
+    const userDoc = await getDoc(doc(db, 'users', uid));
     if (!userDoc.exists()) {
       return null;
     }
-
     return userDoc.data() as UserData;
   } catch (error) {
     console.error('Error getting user data:', error);
@@ -29,28 +24,23 @@ export async function getUserData(email: string): Promise<UserData | null> {
   }
 }
 
-export async function connectUserToPlayer(email: string, playerId: string, playerName: string): Promise<void> {
+export async function connectUserToPlayer(uid: string, playerId: string, playerName: string): Promise<void> {
   try {
     // Check if player is already connected to another user
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('playerId', '==', playerId));
     const querySnapshot = await getDocs(q);
-    
     if (!querySnapshot.empty) {
       throw new Error('Player is already connected to another user');
     }
-
     // Get current user data
-    const userDoc = await getDoc(doc(db, 'users', email));
-    
+    const userDoc = await getDoc(doc(db, 'users', uid));
     if (!userDoc.exists()) {
       throw new Error('User not found');
     }
-
     const userData = userDoc.data() as UserData;
-
     // Update user data with player info
-    await setDoc(doc(db, 'users', email), {
+    await setDoc(doc(db, 'users', uid), {
       ...userData,
       playerId,
       playerName,
@@ -62,34 +52,33 @@ export async function connectUserToPlayer(email: string, playerId: string, playe
   }
 }
 
-export async function createUser(email: string, role: UserData['role'] = 'user'): Promise<void> {
+export async function createUser(uid: string, email: string, role: UserData['role'] = 'user'): Promise<void> {
   try {
     const now = Date.now();
     const userData: UserData = {
+      uid,
       email,
       role,
+      playerId: null,
+      playerName: null,
       createdAt: now,
       updatedAt: now
     };
-
-    await setDoc(doc(db, 'users', email), userData);
+    await setDoc(doc(db, 'users', uid), userData);
   } catch (error) {
     console.error('Error creating user:', error);
     throw error;
   }
 }
 
-export async function updateUserRole(email: string, role: UserData['role']): Promise<void> {
+export async function updateUserRole(uid: string, role: UserData['role']): Promise<void> {
   try {
-    const userDoc = await getDoc(doc(db, 'users', email));
-    
+    const userDoc = await getDoc(doc(db, 'users', uid));
     if (!userDoc.exists()) {
       throw new Error('User not found');
     }
-
     const userData = userDoc.data() as UserData;
-
-    await setDoc(doc(db, 'users', email), {
+    await setDoc(doc(db, 'users', uid), {
       ...userData,
       role,
       updatedAt: Date.now()

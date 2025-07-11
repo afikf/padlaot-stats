@@ -41,7 +41,7 @@ export default function AuthGuard({
     }
     // 2. Check player linkage
     if (requirePlayerLink && (!userData || !userData.playerId)) {
-      router.replace('/link-player');
+      router.replace('/select-player');
       return;
     }
     // 3. Check required role

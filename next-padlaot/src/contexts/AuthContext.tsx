@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isSubscribed = true;
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', { email: user?.email });
+      console.log('Auth state changed:', { email: user?.email, uid: user?.uid });
       
       if (!isSubscribed) {
         console.log('Subscription cancelled, ignoring update');
@@ -40,17 +40,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        if (user?.email) {
-          // Get user data
-          const data = await getUserData(user.email);
+        if (user?.uid) {
+          // Get user data by UID
+          const data = await getUserData(user.uid);
           if (isSubscribed) {
             setUser(user);
             setUserData(data);
+            console.log('Fetched userData:', data);
           }
         } else {
           if (isSubscribed) {
             setUser(null);
             setUserData(null);
+            console.log('No user, cleared state');
           }
         }
       } catch (error) {

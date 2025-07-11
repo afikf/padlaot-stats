@@ -164,14 +164,14 @@ export default function SelectPlayerPage() {
   const filteredPlayers = searchPlayers(players, searchQuery);
 
   const handleSelectPlayer = async (player: Player) => {
-    if (!user?.email || connecting) return;
-    
+    if (!user?.uid || connecting) return;
     try {
       setConnecting(true);
       setError(null);
-      await connectUserToPlayer(user.email, player.id, player.name);
+      console.log('Connecting user to player:', { uid: user.uid, playerId: player.id, playerName: player.name });
+      await connectUserToPlayer(user.uid, player.id, player.name);
       showToast('נבחר השחקן ' + player.name + ' בהצלחה!', 'success');
-      router.push('/dashboard');
+      window.location.href = '/dashboard'; // Force full reload to refresh userData
     } catch (err) {
       setError('שגיאה בחיבור השחקן. אנא נסה שוב.');
       setConnecting(false);
