@@ -11,7 +11,7 @@ interface StatsSummaryProps {
   userData?: any;
 }
 
-export default function StatsSummary({ gameNights, players, showMyStatsOnly, userData }: StatsSummaryProps) {
+export default function StatsSummary({ gameNights, players, showMyStatsOnly = false, userData }: StatsSummaryProps) {
   // Filter game nights if showMyStatsOnly is enabled
   let filteredGameNights = gameNights;
   if (showMyStatsOnly && userData?.playerId) {
@@ -48,18 +48,10 @@ export default function StatsSummary({ gameNights, players, showMyStatsOnly, use
   // Calculate personal goals if filtering for user
   let totalGoals = 0;
   if (showMyStatsOnly && userData?.playerId) {
-    // Count goals from liveGoals where scorerId matches user's playerId
-    filteredGameNights.forEach(night => {
-      night.miniGames?.forEach((mg: any) => {
-        if (Array.isArray(mg.liveGoals)) {
-          mg.liveGoals.forEach((goal: any) => {
-            if (goal.scorerId === userData.playerId) {
-              totalGoals++;
-            }
-          });
-        }
-      });
-    });
+    // Personal goals for current user
+    const playerObj = players.find(p => p.id === userData.playerId);
+    const personalGoals = playerObj?.goals || 0;
+    totalGoals = personalGoals;
   } else {
     // Total goals across all players
     for (const player of players) {

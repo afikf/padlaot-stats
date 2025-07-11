@@ -97,7 +97,7 @@ export default function GameNightsAccordion({ showMyStatsOnly }: { showMyStatsOn
 
   return (
     <>
-      <StatsSummary gameNights={gameNights} players={players} />
+      <StatsSummary gameNights={gameNights} players={players} showMyStatsOnly={showMyStatsOnly} userData={userData} />
       {filteredNights.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <Typography color="text.secondary">לא נמצאו ערבי משחקים</Typography>
