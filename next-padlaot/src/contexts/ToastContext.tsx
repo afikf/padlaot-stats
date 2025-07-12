@@ -26,17 +26,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Render toasts */}
-      <div className="fixed bottom-0 right-0 z-50 p-4 space-y-4">
-        {toasts.map(toast => (
+      {/* Render toasts directly without container */}
+      {toasts.map((toast, index) => (
+        <div
+          key={toast.id}
+          style={{
+            position: 'fixed',
+            top: `${20 + (index * 80)}px`,
+            right: '20px',
+            zIndex: 999999 - index, // Stack toasts with decreasing z-index
+          }}
+        >
           <Toast
-            key={toast.id}
             message={toast.message}
             type={toast.type}
             onClose={() => handleClose(toast.id)}
           />
-        ))}
-      </div>
+        </div>
+      ))}
     </ToastContext.Provider>
   );
 }

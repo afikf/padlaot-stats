@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase/config';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import FetchGameNight from './fetch-game-night';
 
 interface Player {
   id: string;
@@ -55,6 +56,12 @@ export default function TestFirebase() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Firebase Configuration Test</h1>
+      
+      {/* Game Night Data Structure */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Game Night Data Structure</h2>
+        <FetchGameNight />
+      </div>
       
       {/* Status Section */}
       <div className="mb-8">

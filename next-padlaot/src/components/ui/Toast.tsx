@@ -14,17 +14,31 @@ interface ToastProps {
 }
 
 const ICONS = {
-  success: <CheckCircleIcon className="h-5 w-5 text-green-400" />,
-  error: <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />,
-  warning: <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />,
-  info: <InformationCircleIcon className="h-5 w-5 text-blue-400" />
+  success: <CheckCircleIcon style={{ height: '20px', width: '20px', color: '#10b981' }} />,
+  error: <ExclamationTriangleIcon style={{ height: '20px', width: '20px', color: '#ef4444' }} />,
+  warning: <ExclamationTriangleIcon style={{ height: '20px', width: '20px', color: '#f59e0b' }} />,
+  info: <InformationCircleIcon style={{ height: '20px', width: '20px', color: '#3b82f6' }} />
 };
 
-const STYLES = {
-  success: 'bg-green-50 text-green-800 border-green-200',
-  error: 'bg-red-50 text-red-800 border-red-200',
-  warning: 'bg-yellow-50 text-yellow-800 border-yellow-200',
-  info: 'bg-blue-50 text-blue-800 border-blue-200'
+const BACKGROUND_COLORS = {
+  success: '#f0fdf4',
+  error: '#fef2f2',
+  warning: '#fffbeb',
+  info: '#eff6ff'
+};
+
+const BORDER_COLORS = {
+  success: '#bbf7d0',
+  error: '#fecaca',
+  warning: '#fed7aa',
+  info: '#bfdbfe'
+};
+
+const TEXT_COLORS = {
+  success: '#166534',
+  error: '#991b1b',
+  warning: '#92400e',
+  info: '#1e40af'
 };
 
 export function Toast({ message, type = 'info', duration = 5000, onClose }: ToastProps) {
@@ -51,39 +65,58 @@ export function Toast({ message, type = 'info', duration = 5000, onClose }: Toas
 
   if (!isVisible) return null;
 
+  const baseStyles: React.CSSProperties = {
+    backgroundColor: BACKGROUND_COLORS[type],
+    border: `1px solid ${BORDER_COLORS[type]}`,
+    borderRadius: '12px',
+    padding: '16px 20px',
+    minWidth: '300px',
+    maxWidth: '400px',
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+    transform: isLeaving ? 'translateX(100%)' : 'translateX(0)',
+    opacity: isLeaving ? 0 : 1,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    color: TEXT_COLORS[type],
+  };
+
   return (
-    <div
-      className={`
-        fixed bottom-4 right-4 z-50 flex items-center gap-3
-        max-w-md rounded-lg border p-4 shadow-lg
-        transition-all duration-300 ease-in-out
-        ${STYLES[type]}
-        ${isLeaving ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100'}
-      `}
-      role="alert"
-    >
-      <div className="flex-shrink-0">
+    <div style={baseStyles} role="alert">
+      <div style={{ flexShrink: 0, marginTop: '2px' }}>
         {ICONS[type]}
       </div>
       
-      <p className="flex-1 text-sm font-medium">
+      <div style={{ flex: 1, marginRight: '8px' }}>
         {message}
-      </p>
-
+      </div>
+      
       <button
         onClick={handleClose}
-        className={`
-          flex-shrink-0 rounded-lg p-1.5
-          hover:bg-black/5 focus:outline-none
-          focus:ring-2 focus:ring-offset-2
-          ${type === 'error' ? 'focus:ring-red-500' :
-            type === 'success' ? 'focus:ring-green-500' :
-            type === 'warning' ? 'focus:ring-yellow-500' :
-            'focus:ring-blue-500'}
-        `}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '4px',
+          borderRadius: '4px',
+          color: TEXT_COLORS[type],
+          opacity: 0.7,
+          transition: 'opacity 0.2s ease',
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.7';
+        }}
+        aria-label="Close notification"
       >
-        <span className="sr-only">Close</span>
-        <XMarkIcon className="h-4 w-4" />
+        <XMarkIcon style={{ height: '16px', width: '16px' }} />
       </button>
     </div>
   );

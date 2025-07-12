@@ -1,12 +1,15 @@
 "use client";
 
 import AdminGuard from '@/components/auth/AdminGuard';
-import { Box, Typography, Button, Card, CardContent, CircularProgress, Stack } from '@mui/material';
+import { Box, Typography, Button, Card, CardContent, CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import AdminGameDaysAccordion from '@/components/admin/AdminGameDaysAccordion';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
+import { useRouter } from 'next/navigation';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { useToast } from '@/contexts/ToastContext';
 
 interface GameNight {
   id: string;
@@ -22,11 +25,19 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
   const [completedGames, setCompletedGames] = useState<GameNight[]>([]);
+  const [draftGames, setDraftGames] = useState<GameNight[]>([]);
   const { players } = usePlayerStatsCache();
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; gameDay: GameNight | null }>({ open: false, gameDay: null });
+  const { showToast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     async function fetchGames() {
       setLoading(true);
+      // Fetch draft games
+      const draftQ = query(collection(db, 'gameDays'), where('status', '==', 0), orderBy('date', 'asc'));
+      const draftSnap = await getDocs(draftQ);
+      setDraftGames(draftSnap.docs.map(doc => ({ ...(doc.data() as GameNight), id: doc.id })));
       // Fetch live game
       const liveQ = query(collection(db, 'gameDays'), where('status', '==', 2));
       const liveSnap = await getDocs(liveQ);
@@ -45,6 +56,31 @@ export default function AdminPage() {
     }
     fetchGames();
   }, [showCompleted]);
+
+  // Handler to open delete dialog
+  const requestDelete = (gameDay: GameNight) => {
+    setDeleteDialog({ open: true, gameDay });
+  };
+
+  // Handler to actually delete
+  const handleDelete = async () => {
+    const gameDay = deleteDialog.gameDay;
+    if (!gameDay) return;
+    setDeleteDialog({ open: false, gameDay: null });
+    try {
+      await deleteDoc(doc(db, 'gameDays', gameDay.id));
+      setDraftGames((prev) => prev.filter(g => g.id !== gameDay.id));
+      setUpcomingGames((prev) => prev.filter(g => g.id !== gameDay.id));
+      if (showToast) showToast('ערב המשחק נמחק בהצלחה', 'success');
+    } catch (err) {
+      if (showToast) showToast('שגיאה במחיקת ערב המשחק', 'error');
+    }
+  };
+
+  // Handler to edit a game night
+  const handleEdit = (gameDay: GameNight) => {
+    router.push(`/admin/create-game-night?id=${gameDay.id}&step=2`); // step=2 for team assignment
+  };
 
   return (
     <AdminGuard>
@@ -76,6 +112,17 @@ export default function AdminPage() {
                 אין כרגע משחק חי
               </Typography>
             )}
+            {/* Draft Game Nights */}
+            <Typography variant="h6" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
+              טיוטות ערבי משחק
+            </Typography>
+            {draftGames.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" align="center">
+                אין טיוטות
+              </Typography>
+            ) : (
+              <AdminGameDaysAccordion gameDays={draftGames} players={players} onEdit={handleEdit} onDelete={requestDelete} />
+            )}
             {/* Upcoming Game Nights */}
             <Typography variant="h6" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
               משחקים קרובים
@@ -85,16 +132,7 @@ export default function AdminPage() {
                 אין משחקים קרובים
               </Typography>
             ) : (
-              <Stack spacing={2}>
-                {upcomingGames.map(game => (
-                  <Card key={game.id} sx={{ px: 2 }}>
-                    <CardContent>
-                      <Typography variant="body1" fontWeight={700}>{game.date}</Typography>
-                      {/* Add more upcoming game details here */}
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
+              <AdminGameDaysAccordion gameDays={upcomingGames} players={players} onEdit={handleEdit} onDelete={requestDelete} />
             )}
             {/* Completed Games Button */}
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -111,6 +149,17 @@ export default function AdminPage() {
                 <AdminGameDaysAccordion gameDays={completedGames} players={players} />
               </Box>
             )}
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, gameDay: null })}>
+              <DialogTitle>אישור מחיקה</DialogTitle>
+              <DialogContent>
+                <Typography>האם אתה בטוח שברצונך למחוק את ערב המשחק?</Typography>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setDeleteDialog({ open: false, gameDay: null })} color="primary">ביטול</Button>
+                <Button onClick={handleDelete} color="error" variant="contained">מחק</Button>
+              </DialogActions>
+            </Dialog>
           </>
         )}
       </Box>

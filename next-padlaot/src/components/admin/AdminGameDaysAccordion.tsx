@@ -66,7 +66,10 @@ const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDay
       ) : (
         <Box>
           {gameDays.map((night) => {
-            const statusInfo = getStatusLabel(night.status || 'draft');
+            console.log('ADMIN status:', night.status, typeof night.status);
+            const statusInfo = getStatusLabel(
+              night.status !== undefined && night.status !== null ? night.status : 'draft'
+            );
             return (
               <Accordion key={night.id} sx={{ mb: 2, borderRadius: 2 }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>

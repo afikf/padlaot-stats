@@ -105,7 +105,10 @@ export default function GameNightsAccordion({ showMyStatsOnly }: { showMyStatsOn
       ) : (
         <Box>
           {filteredNights.map((night) => {
-            const statusInfo = getStatusLabel(night.status || 'draft');
+            console.log('DASHBOARD status:', night.status, typeof night.status);
+            const statusInfo = getStatusLabel(
+              night.status !== undefined && night.status !== null ? night.status : 'draft'
+            );
             return (
               <Accordion key={night.id} sx={{ mb: 2, borderRadius: 2 }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>

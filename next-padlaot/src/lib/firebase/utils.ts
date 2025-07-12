@@ -32,6 +32,14 @@ export const firestore = {
     return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
   },
 
+  addDoc: async (path: string, data: DocumentData) => {
+    console.log('firestore.addDoc called with path:', path, 'data:', data);
+    const collectionRef = collection(db, path);
+    const docRef = await addDoc(collectionRef, { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    console.log('Document created with ID:', docRef.id);
+    return docRef.id;
+  },
+
   setDoc: async (path: string, data: DocumentData) => {
     const docRef = doc(db, path);
     await setDoc(docRef, { ...data, updatedAt: serverTimestamp() });

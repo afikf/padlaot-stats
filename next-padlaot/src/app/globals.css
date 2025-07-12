@@ -78,3 +78,21 @@ body {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.95);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(4px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.toast-animate-in {
+  animation: toast-in 0.5s cubic-bezier(.21,1.02,.73,1) both;
+}
