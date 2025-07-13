@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { getDocs } from 'firebase/firestore';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
 import { Checkbox, Card, CardContent, Avatar } from '@mui/material';
-import Grid from '@mui/material/Grid';
+import { Grid } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import { Chip } from '@mui/material';
 import ShuffleIcon from '@mui/icons-material/Shuffle';
@@ -19,6 +19,7 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete } from 
 import AddIcon from '@mui/icons-material/Add';
 import { useToast } from '@/contexts/ToastContext';
 import { useSearchParams } from 'next/navigation';
+import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
 
 const steps = [
   'בחירת תאריך',
@@ -52,6 +53,16 @@ export default function CreateGameNightPage() {
   const id = searchParams.get('id');
   const isEditMode = !!id;
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const { subscriptions, loading: loadingSubs } = useSubscriptionsCache();
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
+  const [pendingSubscriptionDay, setPendingSubscriptionDay] = useState<string | null>(null);
+  // After loading the gameNight in useEffect, store fromSubscription in a state
+  const [fromSubscription, setFromSubscription] = useState(false);
+  // Add state for abort dialog
+  const [abortDialogOpen, setAbortDialogOpen] = useState(false);
+  // Add state for date conflict dialog
+  const [dateConflictDialogOpen, setDateConflictDialogOpen] = useState(false);
+  const [conflictingDate, setConflictingDate] = useState<string | null>(null);
 
   // Steps: remove step 4 if in edit mode
   const steps = isEditMode
@@ -70,6 +81,7 @@ export default function CreateGameNightPage() {
           setGameNightId(gameNight.id);
           setDate(gameNight.date ? dayjs(gameNight.date) : null);
           setSelectedPlayers(gameNight.participants || []);
+          setFromSubscription(!!gameNight.fromSubscription);
           // Support both old and new team structures
           if (gameNight.teams && gameNight.teams.A && gameNight.teams.B && gameNight.teams.C) {
             setTeams({
@@ -102,6 +114,95 @@ export default function CreateGameNightPage() {
   };
   const handleClearSelection = () => setSelectedPlayers([]);
   const handleSelectAll = () => setSelectedPlayers(players.slice(0, 21).map((p) => p.id));
+
+  // Check if date already has a game (including drafts)
+  const checkDateConflict = async (selectedDate: string): Promise<boolean> => {
+    try {
+      const existingQuery = firestore.query('gameDays', firestore.where('date', '==', selectedDate));
+      const existingDocs = await getDocs(existingQuery);
+      return !existingDocs.empty;
+    } catch (error) {
+      console.error('Error checking date conflict:', error);
+      return false;
+    }
+  };
+
+  const handleDateChange = (newValue: Dayjs | null) => {
+    setDate(newValue);
+    setDateError(null);
+    setConflictingDate(null);
+    
+    if (!isEditMode && newValue) {
+      // Check for date conflict first
+      const selectedDate = newValue.format('YYYY-MM-DD');
+      checkDateConflict(selectedDate).then(hasConflict => {
+        if (hasConflict) {
+          setConflictingDate(selectedDate);
+          setDateConflictDialogOpen(true);
+          setDate(null); // Clear the date selection
+          return;
+        }
+        // Only open subscription dialog if no conflict
+        const weekDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayKey = weekDays[newValue.day()];
+        const subs = subscriptions[dayKey] || [];
+        if (subs.length === 21) {
+          setPendingSubscriptionDay(dayKey);
+          setSubscriptionDialogOpen(true);
+        }
+      });
+    }
+  };
+
+  const handleUseSubscription = async () => {
+    if (!pendingSubscriptionDay || !date) return;
+    
+    // Check for date conflict before proceeding with subscription
+    const selectedDate = date.format('YYYY-MM-DD');
+    const hasConflict = await checkDateConflict(selectedDate);
+    if (hasConflict) {
+      setConflictingDate(selectedDate);
+      setDateConflictDialogOpen(true);
+      setSubscriptionDialogOpen(false);
+      setPendingSubscriptionDay(null);
+      return;
+    }
+    
+    const subs = subscriptions[pendingSubscriptionDay] || [];
+    setSelectedPlayers(subs.map(p => p.id));
+    // If game night not created yet, create it
+    if (!gameNightId) {
+      setLoading(true);
+      try {
+        const gameNightData = {
+          date: selectedDate,
+          status: 0, // draft
+          participants: subs.map(p => p.id),
+          teams: { A: { players: [] }, B: { players: [] }, C: { players: [] } },
+          miniGames: [],
+          fromSubscription: true,
+          subscriptionDay: pendingSubscriptionDay
+        };
+        const docId = await firestore.addDoc('gameDays', gameNightData);
+        setGameNightId(docId);
+        setActiveStep(2); // Jump to team selection
+        setFromSubscription(true);
+      } catch (error) {
+        setDateError('שגיאה ביצירת ערב משחק');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setActiveStep(2);
+    }
+    setSubscriptionDialogOpen(false);
+    setPendingSubscriptionDay(null);
+  };
+  const handleSkipSubscription = () => {
+    setActiveStep(1);
+    setSubscriptionDialogOpen(false);
+    setPendingSubscriptionDay(null);
+  };
 
   // Filter players by search
   const filteredPlayers = players.filter(p =>
@@ -168,10 +269,11 @@ export default function CreateGameNightPage() {
       setLoading(true);
       try {
         const selectedDate = date.format('YYYY-MM-DD');
-        const existingQuery = firestore.query('gameDays', firestore.where('date', '==', selectedDate));
-        const existingDocs = await getDocs(existingQuery);
-        if (!existingDocs.empty) {
-          setDateError('כבר קיים ערב משחק בתאריך זה');
+        // Double-check for date conflict (in case user somehow bypassed the initial check)
+        const hasConflict = await checkDateConflict(selectedDate);
+        if (hasConflict) {
+          setConflictingDate(selectedDate);
+          setDateConflictDialogOpen(true);
           setLoading(false);
           return;
         }
@@ -293,6 +395,83 @@ export default function CreateGameNightPage() {
     router.push('/admin');
   };
 
+  // Abort game creation handlers
+  const handleAbort = () => setAbortDialogOpen(true);
+  
+  const handleAbortYes = async () => {
+    setAbortDialogOpen(false);
+    setLoading(true);
+    try {
+      // If game night exists, delete it
+      if (gameNightId) {
+        await firestore.deleteDoc(`gameDays/${gameNightId}`);
+      }
+      // Reset all state
+      setActiveStep(0);
+      setGameNightId(null);
+      setSelectedPlayers([]);
+      setTeams({ A: [], B: [], C: [] });
+      setDate(null);
+      setCompleted(false);
+      setFromSubscription(false);
+      if (showToast) showToast('יצירת ערב המשחק בוטלה', 'info');
+      // Navigate back to previous page
+      router.back();
+    } catch (error) {
+      if (showToast) showToast('שגיאה בביטול יצירת ערב המשחק', 'error');
+      else alert('שגיאה בביטול יצירת ערב המשחק');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleAbortNo = () => {
+    setAbortDialogOpen(false);
+    // Stay in current state - do nothing
+  };
+  
+  const handleAbortSaveAsDraft = async () => {
+    setAbortDialogOpen(false);
+    setLoading(true);
+    try {
+      // Save current state as draft
+      const gameNightData = {
+        date: date ? date.format('YYYY-MM-DD') : '',
+        status: 0, // draft
+        participants: selectedPlayers,
+        teams: {
+          A: { players: teams.A, captain: teams.A[0] || '' },
+          B: { players: teams.B, captain: teams.B[0] || '' },
+          C: { players: teams.C, captain: teams.C[0] || '' },
+        },
+        fromSubscription,
+        subscriptionDay: pendingSubscriptionDay
+      };
+      
+      if (gameNightId) {
+        // Update existing draft
+        await firestore.updateDoc(`gameDays/${gameNightId}`, gameNightData);
+      } else {
+        // Create new draft
+        await firestore.addDoc('gameDays', gameNightData);
+      }
+      
+      if (showToast) showToast('ערב המשחק נשמר כטיוטה', 'success');
+      // Navigate back to previous page
+      router.back();
+    } catch (error) {
+      if (showToast) showToast('שגיאה בשמירת הטיוטה', 'error');
+      else alert('שגיאה בשמירת הטיוטה');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDateConflictClose = () => {
+    setDateConflictDialogOpen(false);
+    setConflictingDate(null);
+  };
+
   console.log('isEditMode:', isEditMode, 'activeStep:', activeStep, 'steps.length:', steps.length);
 
   // 2. Define EditModeButtons and CreateModeButtons components inside CreateGameNightPage
@@ -347,6 +526,15 @@ export default function CreateGameNightPage() {
           {'הקודם'}
         </Button>
         <Button
+          onClick={handleAbort}
+          variant="outlined"
+          color="error"
+          disabled={loading}
+          sx={{ minHeight: 44, flex: 1 }}
+        >
+          בטל יצירה
+        </Button>
+        <Button
           onClick={handleNext}
           variant="contained"
           color="primary"
@@ -372,9 +560,28 @@ export default function CreateGameNightPage() {
   return (
     <AdminGuard>
       <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
-        <Typography variant="h4" color="primary" fontWeight={900} gutterBottom align="center">
-          {isEditMode ? 'עריכת ערב משחק' : 'יצירת ערב משחק חדש'}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 2 }}>
+          <Typography variant="h4" color="primary" fontWeight={900} gutterBottom align="center">
+            {isEditMode ? 'עריכת ערב משחק' : 'יצירת ערב משחק חדש'}
+          </Typography>
+          {fromSubscription && (
+            <Chip 
+              color="warning" 
+              label="משתמש במנויים" 
+              sx={{ 
+                fontWeight: 900, 
+                fontSize: 16, 
+                px: 2.5, 
+                py: 1, 
+                border: '2px solid #f59e0b', // strong orange border
+                bgcolor: '#fffbe6', // light orange background
+                color: '#b45309', // dark orange text
+                boxShadow: '0 2px 8px -2px #f59e0b44',
+                letterSpacing: 1,
+              }} 
+            />
+          )}
+        </Box>
         <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
           {steps.map((label) => (
             <Step key={label}>
@@ -385,8 +592,8 @@ export default function CreateGameNightPage() {
         <Paper sx={{ p: 4, minHeight: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           {completed ? (
             <>
-              <Typography variant="h6" color="success.main" gutterBottom>
-                🎉 ערב משחק נוצר בהצלחה!
+              <Typography variant="h6" gutterBottom>
+                צור ערב נוסף
               </Typography>
               <Button onClick={handleReset} variant="outlined" color="primary">צור ערב נוסף</Button>
             </>
@@ -395,20 +602,12 @@ export default function CreateGameNightPage() {
               <Typography variant="body1" color="text.secondary" gutterBottom>
                 שלב: {steps[activeStep]}
               </Typography>
-              {gameNightId && activeStep > 0 && (
-                <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                  ✅ ערב משחק נוצר בהצלחה (מזהה: {gameNightId})
-                </Typography>
-              )}
               {activeStep === 0 && (
                 <Box sx={{ mt: 2, width: '100%', maxWidth: 320 }}>
                   <DatePicker
                     label="בחר תאריך לערב המשחק"
                     value={date}
-                    onChange={(newValue) => {
-                      setDate(newValue);
-                      setDateError(null);
-                    }}
+                    onChange={handleDateChange}
                     minDate={today}
                     slotProps={{
                       textField: {
@@ -482,7 +681,7 @@ export default function CreateGameNightPage() {
                         {filteredPlayers.map((player: any) => {
                           const selected = selectedPlayers.includes(player.id);
                           return (
-                            <Grid item xs={6} sm={4} md={3} key={player.id}>
+                            <Grid size={{ xs: 6, sm: 4, md: 3 }} key={player.id}>
                               <Card
                                 onClick={() => handlePlayerToggle(player.id)}
                                 sx={{
@@ -746,6 +945,7 @@ export default function CreateGameNightPage() {
                             setTeams({ A: [], B: [], C: [] });
                             setDate(null);
                             setCompleted(false);
+                            setFromSubscription(false); // Reset fromSubscription on discard
                             if (showToast) showToast('הטיוטה בוטלה', 'success');
                           } catch (error) {
                             if (showToast) showToast('שגיאה בביטול הערב', 'error');
@@ -777,6 +977,48 @@ export default function CreateGameNightPage() {
           <DialogActions>
             <Button onClick={() => setDiscardDialogOpen(false)} color="primary">חזור</Button>
             <Button onClick={confirmDiscard} color="error" variant="contained">כן, בטל שינויים</Button>
+          </DialogActions>
+        </Dialog>
+        {/* Subscription Dialog */}
+        <Dialog open={subscriptionDialogOpen} onClose={handleSkipSubscription}>
+          <DialogTitle>שימוש במנויים</DialogTitle>
+          <DialogContent>
+            <Typography>האם ברצונך להשתמש במנויים של יום זה?</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleSkipSubscription}>לא</Button>
+            <Button color="primary" variant="contained" onClick={handleUseSubscription}>כן</Button>
+          </DialogActions>
+        </Dialog>
+        {/* Abort Game Creation Dialog */}
+        <Dialog open={abortDialogOpen} onClose={handleAbortNo}>
+          <DialogTitle>בטל יצירת ערב משחק</DialogTitle>
+          <DialogContent>
+            <Typography>האם אתה בטוח שברצונך לבטל את יצירת ערב המשחק? פעולה זו תמחק את כל הנתונים שנשמרו עד כה.</Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              אפשרויות:
+              <br />
+              כן - בטל ומחק את כל הנתונים.
+              <br />
+              לא - נשאר בטיוטה הנוכחית.
+              <br />
+              שמור כטיוטה - שמור את הנתונים שנשמרו עד כה כטיוטה.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleAbortNo} color="primary">לא</Button>
+            <Button onClick={handleAbortYes} color="error" variant="contained">כן</Button>
+            <Button onClick={handleAbortSaveAsDraft} color="warning" variant="outlined">שמור כטיוטה</Button>
+          </DialogActions>
+        </Dialog>
+        {/* Date Conflict Dialog */}
+        <Dialog open={dateConflictDialogOpen} onClose={handleDateConflictClose}>
+          <DialogTitle>תאריך זה כבר בשימוש</DialogTitle>
+          <DialogContent>
+            <Typography>התאריך {conflictingDate} כבר בשימוש. בחר תאריך אחר לערב המשחק.</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDateConflictClose} color="primary">סגור</Button>
           </DialogActions>
         </Dialog>
       </Box>

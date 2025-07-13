@@ -16,9 +16,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     async function checkAdminRole() {
+      console.log('[AdminContext] useEffect: user:', user, 'userData:', userData);
       if (!user || !userData) {
         setAdminUser(null);
         setLoading(false);
+        console.log('[AdminContext] No user or userData, adminUser set to null');
         return;
       }
 
@@ -33,19 +35,23 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const role = userData.role || 'user';
-
-          if (role === 'admin' || role === 'super admin') {
-            setAdminUser({
+          console.log('[AdminContext] Firestore user role:', role);
+          if (role === 'admin' || role === 'super-admin') {
+            const adminUserObj = {
               id: user.uid,
               email: user.email || '',
               role: role as UserRole,
               playerId: userData.playerId,
-            });
+            };
+            setAdminUser(adminUserObj);
+            console.log('[AdminContext] Set adminUser:', adminUserObj);
           } else {
             setAdminUser(null);
+            console.log('[AdminContext] Role not admin/super-admin, adminUser set to null');
           }
         } else {
           setAdminUser(null);
+          console.log('[AdminContext] No userDoc, adminUser set to null');
         }
       } catch (err) {
         console.error('Error checking admin role:', err);
@@ -60,12 +66,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, [user, userData]);
 
   const value: AdminContextType = {
-    isAdmin: adminUser?.role === 'admin' || adminUser?.role === 'super admin',
-    isSuperAdmin: adminUser?.role === 'super admin',
+    isAdmin: adminUser?.role === 'admin' || adminUser?.role === 'super-admin',
+    isSuperAdmin: adminUser?.role === 'super-admin',
     adminUser,
     loading,
     error,
   };
+  console.log('[AdminContext] value:', value);
 
   return (
     <AdminContext.Provider value={value}>

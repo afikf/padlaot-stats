@@ -4,7 +4,7 @@ import { db, auth } from './config';
 export interface UserData {
   uid: string;
   email: string;
-  role: 'admin' | 'user';
+  role: 'super-admin' | 'admin' | 'user';
   playerId?: string;
   playerName?: string;
   createdAt: number;
@@ -42,10 +42,16 @@ export async function connectUserToPlayer(uid: string, playerId: string, playerN
     // Update user data with player info
     await setDoc(doc(db, 'users', uid), {
       ...userData,
-      playerId,
-      playerName,
+      playerId: playerId === null ? '' : playerId,
+      playerName: playerName === null ? '' : playerName,
       updatedAt: Date.now()
     });
+    // Update player doc with userId
+    const playerDocRef = doc(db, 'players', playerId);
+    const playerDoc = await getDoc(playerDocRef);
+    if (playerDoc.exists()) {
+      await setDoc(playerDocRef, { ...playerDoc.data(), userId: uid }, { merge: true });
+    }
   } catch (error) {
     console.error('Error connecting user to player:', error);
     throw error;
@@ -59,8 +65,8 @@ export async function createUser(uid: string, email: string, role: UserData['rol
       uid,
       email,
       role,
-      playerId: null,
-      playerName: null,
+      playerId: undefined,
+      playerName: undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -85,6 +91,17 @@ export async function updateUserRole(uid: string, role: UserData['role']): Promi
     });
   } catch (error) {
     console.error('Error updating user role:', error);
+    throw error;
+  }
+}
+
+export async function getAllUsers(): Promise<UserData[]> {
+  try {
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(usersRef);
+    return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserData));
+  } catch (error) {
+    console.error('Error fetching all users:', error);
     throw error;
   }
 } 

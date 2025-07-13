@@ -3,13 +3,18 @@
 import AdminGuard from '@/components/auth/AdminGuard';
 import { Box, Typography, Button, Card, CardContent, CircularProgress, Stack, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, getDoc, writeBatch, updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import AdminGameDaysAccordion from '@/components/admin/AdminGameDaysAccordion';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
 import { useRouter } from 'next/navigation';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc } from 'firebase/firestore';
 import { useToast } from '@/contexts/ToastContext';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface GameNight {
   id: string;
@@ -34,24 +39,34 @@ export default function AdminPage() {
   useEffect(() => {
     async function fetchGames() {
       setLoading(true);
-      // Fetch draft games
-      const draftQ = query(collection(db, 'gameDays'), where('status', '==', 0), orderBy('date', 'asc'));
-      const draftSnap = await getDocs(draftQ);
-      setDraftGames(draftSnap.docs.map(doc => ({ ...(doc.data() as GameNight), id: doc.id })));
-      // Fetch live game
-      const liveQ = query(collection(db, 'gameDays'), where('status', '==', 2));
-      const liveSnap = await getDocs(liveQ);
-      setLiveGame(liveSnap.empty ? null : { ...(liveSnap.docs[0].data() as GameNight), id: liveSnap.docs[0].id });
-      // Fetch upcoming games
-      const upcomingQ = query(collection(db, 'gameDays'), where('status', '==', 1), orderBy('date', 'asc'));
-      const upcomingSnap = await getDocs(upcomingQ);
-      setUpcomingGames(upcomingSnap.docs.map(doc => ({ ...(doc.data() as GameNight), id: doc.id })));
-      // Fetch completed games (only if needed)
-      if (showCompleted) {
-        const completedQ = query(collection(db, 'gameDays'), where('status', '==', 3), orderBy('date', 'desc'));
-        const completedSnap = await getDocs(completedQ);
-        setCompletedGames(completedSnap.docs.map(doc => ({ ...(doc.data() as GameNight), id: doc.id })));
+      // Fetch all games
+      const allQ = query(collection(db, 'gameDays'), orderBy('date', 'asc'));
+      const allSnap = await getDocs(allQ);
+      const allGames = allSnap.docs.map(doc => ({ ...(doc.data() as GameNight), id: doc.id }));
+      // Get today in Israel time
+      const todayIsrael = dayjs().tz('Asia/Jerusalem').format('YYYY-MM-DD');
+      // Partition games by status and date
+      let live: GameNight | null = null;
+      const upcoming: GameNight[] = [];
+      const draft: GameNight[] = [];
+      const completed: GameNight[] = [];
+      for (const game of allGames) {
+        if (game.status === 0) draft.push(game);
+        else if (game.status === 3) completed.push(game);
+        else if (game.status === 2) live = game;
+        else if (game.status === 1) {
+          // If the date is today (Israel time), treat as live
+          if (game.date === todayIsrael) {
+            live = game;
+          } else {
+            upcoming.push(game);
+          }
+        }
       }
+      setDraftGames(draft);
+      setUpcomingGames(upcoming);
+      setCompletedGames(completed);
+      setLiveGame(live);
       setLoading(false);
     }
     fetchGames();
@@ -68,6 +83,86 @@ export default function AdminPage() {
     if (!gameDay) return;
     setDeleteDialog({ open: false, gameDay: null });
     try {
+      if (gameDay.status === 3) {
+        // Rollback player stats for completed game night
+        const gameDayRef = doc(db, 'gameDays', gameDay.id);
+        const gameDaySnap = await getDoc(gameDayRef);
+        if (!gameDaySnap.exists()) throw new Error('Game night not found');
+        const data = gameDaySnap.data();
+        const miniGames = Array.isArray(data.miniGames) ? data.miniGames : [];
+        const teams = data.teams || {};
+        // Collect all player IDs
+        const allPlayerIds: string[] = [];
+        Object.values(teams).forEach((team: any) => {
+          if (Array.isArray(team.players)) {
+            team.players.forEach((pid: string) => {
+              if (!allPlayerIds.includes(pid)) allPlayerIds.push(pid);
+            });
+          }
+        });
+        // Prepare stat rollback per player
+        const playerStats: Record<string, { goals: number; assists: number; wins: number; miniGames: number }> = {};
+        allPlayerIds.forEach(playerId => {
+          playerStats[playerId] = { goals: 0, assists: 0, wins: 0, miniGames: 0 };
+        });
+        // Count stats from miniGames
+        miniGames.forEach((mini: any) => {
+          if (mini.status === 'complete') {
+            // Goals/assists from both possible arrays
+            const allGoals = [
+              ...(Array.isArray(mini.goals) ? mini.goals : []),
+              ...(Array.isArray(mini.liveGoals) ? mini.liveGoals : [])
+            ];
+            allGoals.forEach((goal: any) => {
+              if (goal.scorerId && playerStats[goal.scorerId]) playerStats[goal.scorerId].goals++;
+              if (goal.assistId && playerStats[goal.assistId]) playerStats[goal.assistId].assists++;
+            });
+            // Wins
+            Object.keys(teams).forEach(teamKey => {
+              const team = teams[teamKey];
+              if (team && Array.isArray(team.players)) {
+                const isWinner = (mini.teamA === teamKey && mini.scoreA > mini.scoreB) || (mini.teamB === teamKey && mini.scoreB > mini.scoreA);
+                if (isWinner) {
+                  team.players.forEach((pid: string) => {
+                    if (playerStats[pid]) playerStats[pid].wins++;
+                  });
+                }
+              }
+            });
+            // Mini-games played
+            Object.values(teams).forEach((team: any) => {
+              if (team && Array.isArray(team.players)) {
+                team.players.forEach((pid: string) => {
+                  if (playerStats[pid]) playerStats[pid].miniGames++;
+                });
+              }
+            });
+          }
+        });
+        // Batch update all players
+        const batch = writeBatch(db);
+        for (const playerId of allPlayerIds) {
+          const playerRef = doc(db, 'players', playerId);
+          const playerSnap = await getDoc(playerRef);
+          if (playerSnap.exists()) {
+            const pdata = playerSnap.data();
+            batch.update(playerRef, {
+              totalGoals: Math.max(0, (pdata.totalGoals || 0) - playerStats[playerId].goals),
+              totalAssists: Math.max(0, (pdata.totalAssists || 0) - playerStats[playerId].assists),
+              totalWins: Math.max(0, (pdata.totalWins || 0) - playerStats[playerId].wins),
+              totalMiniGames: Math.max(0, (pdata.totalMiniGames || 0) - playerStats[playerId].miniGames),
+              totalGameNights: Math.max(0, (pdata.totalGameNights || 0) - 1)
+            });
+          }
+        }
+        // Delete the game night
+        batch.delete(gameDayRef);
+        await batch.commit();
+        setCompletedGames((prev) => prev.filter(g => g.id !== gameDay.id));
+        if (showToast) showToast('ערב המשחק הושלם ונמחק בהצלחה, הסטטיסטיקות עודכנו', 'success');
+        return;
+      }
+      // Not completed: just delete
       await deleteDoc(doc(db, 'gameDays', gameDay.id));
       setDraftGames((prev) => prev.filter(g => g.id !== gameDay.id));
       setUpcomingGames((prev) => prev.filter(g => g.id !== gameDay.id));
@@ -79,7 +174,25 @@ export default function AdminPage() {
 
   // Handler to edit a game night
   const handleEdit = (gameDay: GameNight) => {
-    router.push(`/admin/create-game-night?id=${gameDay.id}&step=2`); // step=2 for team assignment
+    if (gameDay.status === 3) {
+      // Completed game: go to mini-games management in edit mode
+      router.push(`/admin/live/${gameDay.id}?editCompleted=true`);
+    } else {
+      // Draft/upcoming: go to create/edit wizard
+      router.push(`/admin/create-game-night?id=${gameDay.id}&step=2`);
+    }
+  };
+
+  // Handler to make a game live
+  const handleMakeLive = async (gameDay: GameNight) => {
+    try {
+      await updateDoc(doc(db, 'gameDays', gameDay.id), { status: 2 });
+      setUpcomingGames(prev => prev.filter(g => g.id !== gameDay.id));
+      setLiveGame(gameDay);
+      if (showToast) showToast('המשחק הועבר לסטטוס חי', 'success');
+    } catch (err) {
+      if (showToast) showToast('שגיאה בהעברת המשחק לסטטוס חי', 'error');
+    }
   };
 
   return (
@@ -105,6 +218,15 @@ export default function AdminPage() {
                     {liveGame.date} {/* Format as needed */}
                   </Typography>
                   {/* Add more live game details here */}
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    sx={{ mt: 2, fontWeight: 900, fontSize: '1.1rem', px: 4, py: 1.5 }}
+                    fullWidth
+                    onClick={() => router.push(`/admin/live/${liveGame.id}`)}
+                  >
+                    נהל משחק חי
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -132,7 +254,7 @@ export default function AdminPage() {
                 אין משחקים קרובים
               </Typography>
             ) : (
-              <AdminGameDaysAccordion gameDays={upcomingGames} players={players} onEdit={handleEdit} onDelete={requestDelete} />
+              <AdminGameDaysAccordion gameDays={upcomingGames} players={players} onEdit={handleEdit} onDelete={requestDelete} onMakeLive={handleMakeLive} />
             )}
             {/* Completed Games Button */}
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -146,7 +268,12 @@ export default function AdminPage() {
                 <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
                   משחקים שהושלמו
                 </Typography>
-                <AdminGameDaysAccordion gameDays={completedGames} players={players} />
+                <AdminGameDaysAccordion
+                  gameDays={completedGames}
+                  players={players}
+                  onEdit={handleEdit}
+                  onDelete={requestDelete}
+                />
               </Box>
             )}
             {/* Delete Confirmation Dialog */}

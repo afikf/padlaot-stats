@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Box, Typography, Accordion, AccordionSummary, AccordionDetails, Divider, Stack, Chip, IconButton
+  Box, Typography, Accordion, AccordionSummary, AccordionDetails, Divider, Stack, Chip, IconButton, Button
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import EditIcon from '@mui/icons-material/Edit';
@@ -16,15 +16,20 @@ function getPlayerName(players: any[], id: string) {
   return player ? player.name : id;
 }
 
-function getTeamScore(liveGoals: any[], teamKey: string) {
-  if (!Array.isArray(liveGoals)) return 0;
-  return liveGoals.filter((g) => g.team === teamKey).length;
+function getTeamScore(goals: any[], teamKey: string) {
+  if (!Array.isArray(goals)) return 0;
+  return goals.filter((g) => g.team === teamKey).length;
 }
 
 function getTeamDisplayName(night: any, teamKey: string, players: any[]) {
   const team = night.teams?.[teamKey];
-  if (team && Array.isArray(team) && team.length > 0) {
+  // Support both array and object structure
+  if (Array.isArray(team) && team.length > 0) {
     const firstPlayerId = team[0];
+    const firstPlayerName = getPlayerName(players, firstPlayerId);
+    return `קבוצת ${firstPlayerName}`;
+  } else if (team && Array.isArray(team.players) && team.players.length > 0) {
+    const firstPlayerId = team.players[0];
     const firstPlayerName = getPlayerName(players, firstPlayerId);
     return `קבוצת ${firstPlayerName}`;
   }
@@ -54,9 +59,10 @@ interface AdminGameDaysAccordionProps {
   players?: any[];
   onEdit?: (gameDay: any) => void;
   onDelete?: (gameDay: any) => void;
+  onMakeLive?: (gameDay: any) => void;
 }
 
-const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDays, players = [], onEdit, onDelete }) => {
+const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDays, players = [], onEdit, onDelete, onMakeLive }) => {
   return (
     <Box>
       {gameDays.length === 0 ? (
@@ -82,15 +88,45 @@ const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDay
                       variant="outlined"
                     />
                     <Box sx={{ flexGrow: 1 }} />
+                    {/* Show 'Make Live' button only for upcoming games */}
+                    {onMakeLive && night.status === 1 && (
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        sx={{ fontWeight: 700, ml: 1 }}
+                        onClick={e => { e.stopPropagation(); onMakeLive(night); }}
+                      >
+                        הפוך לחי
+                      </Button>
+                    )}
                     {onEdit && (
-                      <IconButton size="small" onClick={e => { e.stopPropagation(); onEdit(night); }}>
+                      <span
+                        style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', padding: 4, borderRadius: 4, transition: 'background 0.2s', marginLeft: 2 }}
+                        onClick={e => { e.stopPropagation(); onEdit(night); }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="ערוך"
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onEdit(night); } }}
+                        onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
+                        onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+                      >
                         <EditIcon fontSize="small" />
-                      </IconButton>
+                      </span>
                     )}
                     {onDelete && (
-                      <IconButton size="small" onClick={e => { e.stopPropagation(); onDelete(night); }}>
+                      <span
+                        style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer', padding: 4, borderRadius: 4, transition: 'background 0.2s' }}
+                        onClick={e => { e.stopPropagation(); onDelete(night); }}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="מחק"
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onDelete(night); } }}
+                        onMouseOver={e => (e.currentTarget.style.background = '#f3f4f6')}
+                        onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
+                      >
                         <DeleteIcon fontSize="small" />
-                      </IconButton>
+                      </span>
                     )}
                   </Box>
                 </AccordionSummary>
@@ -99,8 +135,10 @@ const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDay
                     night.miniGames.map((mg: any, idx: number) => {
                       const teamAKey = mg.teamA || 'A';
                       const teamBKey = mg.teamB || 'B';
-                      const scoreA = getTeamScore(mg.liveGoals, teamAKey);
-                      const scoreB = getTeamScore(mg.liveGoals, teamBKey);
+                      // Use mg.goals if present, otherwise mg.liveGoals
+                      const goalsArr = Array.isArray(mg.goals) ? mg.goals : (Array.isArray(mg.liveGoals) ? mg.liveGoals : []);
+                      const scoreA = getTeamScore(goalsArr, teamAKey);
+                      const scoreB = getTeamScore(goalsArr, teamBKey);
                       const teamADisplay = getTeamDisplayName(night, teamAKey, players);
                       const teamBDisplay = getTeamDisplayName(night, teamBKey, players);
                       return (
@@ -117,14 +155,14 @@ const AdminGameDaysAccordion: React.FC<AdminGameDaysAccordionProps> = ({ gameDay
                             </Typography>
                           </Stack>
                           {/* Goals List */}
-                          {Array.isArray(mg.liveGoals) && mg.liveGoals.length > 0 ? (
+                          {goalsArr.length > 0 ? (
                             <Box sx={{ pl: 2 }}>
-                              {mg.liveGoals.map((goal: any, i: number) => (
+                              {goalsArr.map((goal: any, i: number) => (
                                 <Typography key={goal.id || i} variant="body2" sx={{ mb: 0.5 }}>
                                   {getPlayerName(players, goal.scorerId)}
-                                  {goal.assisterId && (
+                                  {goal.assistId && (
                                     <>
-                                      {' '}(<span style={{ color: '#2563eb' }}>{getPlayerName(players, goal.assisterId)}</span>)
+                                      {' '}(<span style={{ color: '#2563eb' }}>{getPlayerName(players, goal.assistId)}</span>)
                                     </>
                                   )}
                                 </Typography>
