@@ -21,6 +21,8 @@ import { useToast } from '@/contexts/ToastContext';
 import { useSearchParams } from 'next/navigation';
 import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
 import { useAuth } from '@/contexts/AuthContext';
+import { collection, getDocs as getDocsFirestore } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 
 const steps = [
   'בחירת תאריך',
@@ -65,6 +67,7 @@ export default function CreateGameNightPage() {
   const [dateConflictDialogOpen, setDateConflictDialogOpen] = useState(false);
   const [conflictingDate, setConflictingDate] = useState<string | null>(null);
   const { user } = useAuth();
+  const [playerAverages, setPlayerAverages] = useState<Record<string, number>>({});
 
   // Steps: remove step 4 if in edit mode
   const steps = isEditMode
@@ -101,6 +104,20 @@ export default function CreateGameNightPage() {
       });
     }
   }, [id, searchParams]); // Only run on mount
+
+  // Fetch player average ratings
+  useEffect(() => {
+    async function fetchAverages() {
+      const snap = await getDocsFirestore(collection(db, 'playerRatings'));
+      const averages: Record<string, number> = {};
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (typeof data.average === 'number') averages[doc.id] = data.average;
+      });
+      setPlayerAverages(averages);
+    }
+    fetchAverages();
+  }, []);
 
   // Get today's date (local, not strict Israeli time)
   const today = dayjs().startOf('day'); // TODO: For strict Israeli time, use dayjs-tz plugin
@@ -250,6 +267,21 @@ export default function CreateGameNightPage() {
     });
   };
 
+  const handleSmartSplit = () => {
+    // Greedy algorithm: sort players by average, snake-draft into teams
+    const playerIds = [...selectedPlayers];
+    playerIds.sort((a, b) => (playerAverages[b] ?? 0) - (playerAverages[a] ?? 0));
+    const teamsArr: string[][] = [[], [], []];
+    let dir = 1, idx = 0;
+    for (const pid of playerIds) {
+      teamsArr[idx].push(pid);
+      idx += dir;
+      if (idx === 3) { idx = 2; dir = -1; }
+      if (idx === -1) { idx = 0; dir = 1; }
+    }
+    setTeams({ A: teamsArr[0], B: teamsArr[1], C: teamsArr[2] });
+  };
+
   // Add player to team (and to selectedPlayers if not present)
   const handleAddPlayerToTeam = (playerId: string, team: 'A' | 'B' | 'C') => {
     if (!selectedPlayers.includes(playerId)) {
@@ -325,7 +357,7 @@ export default function CreateGameNightPage() {
       setLoading(true);
       try {
         await firestore.updateDoc(`gameDays/${gameNightId}`, { teams: teamsObj });
-        setActiveStep((prev) => prev + 1);
+      setActiveStep((prev) => prev + 1);
       } catch (error) {
         alert('שגיאה בשמירת הקבוצות');
       } finally {
@@ -478,6 +510,16 @@ export default function CreateGameNightPage() {
 
   console.log('isEditMode:', isEditMode, 'activeStep:', activeStep, 'steps.length:', steps.length);
 
+  // Helper to get player average
+  const getPlayerAverage = (id: string) => playerAverages[id] ?? '-';
+  // Helper to get team average
+  const getTeamAverage = (team: string[]) => {
+    const avgs = team.map(pid => playerAverages[pid]).filter(v => typeof v === 'number');
+    if (avgs.length === 0) return '-';
+    const avg = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+    return avg.toFixed(2);
+  };
+
   // 2. Define EditModeButtons and CreateModeButtons components inside CreateGameNightPage
   function EditModeButtons() {
     return (
@@ -565,9 +607,9 @@ export default function CreateGameNightPage() {
     <AdminGuard>
       <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 2 }}>
-          <Typography variant="h4" color="primary" fontWeight={900} gutterBottom align="center">
+        <Typography variant="h4" color="primary" fontWeight={900} gutterBottom align="center">
             {isEditMode ? 'עריכת ערב משחק' : 'יצירת ערב משחק חדש'}
-          </Typography>
+        </Typography>
           {fromSubscription && (
             <Chip 
               color="warning" 
@@ -642,13 +684,13 @@ export default function CreateGameNightPage() {
                       alignItems: { xs: 'stretch', sm: 'center' },
                     }}
                   >
-                    <TextField
+                      <TextField
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       placeholder="חפש שחקן..."
                       variant="outlined"
                       size="small"
-                      fullWidth
+                        fullWidth
                       sx={{ bgcolor: 'background.paper', borderRadius: 2 }}
                       InputProps={{
                         startAdornment: (
@@ -667,7 +709,7 @@ export default function CreateGameNightPage() {
                     </Button>
                     <Button
                       onClick={handleSelectAll}
-                      variant="outlined"
+                        variant="outlined"
                       color="primary"
                       disabled={players.length < 21}
                       sx={{ width: { xs: '100%', sm: 'auto' } }}
@@ -711,6 +753,7 @@ export default function CreateGameNightPage() {
                                     {player.name?.[0] || '?'}
                                   </Avatar>
                                   <Typography variant="body2" fontWeight={600} sx={{ mb: 1, color: selected ? 'primary.main' : 'text.primary' }}>{player.name}</Typography>
+                                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>ממוצע: {getPlayerAverage(player.id)}</Typography>
                                   <Checkbox
                                     checked={selected}
                                     onChange={e => { e.stopPropagation(); handlePlayerToggle(player.id); }}
@@ -734,6 +777,7 @@ export default function CreateGameNightPage() {
                   <Typography variant="h6" sx={{ mb: 2, fontSize: { xs: '1.1rem', md: '1.25rem' } }}>שיבוץ שחקנים לקבוצות (7 בכל קבוצה)</Typography>
                   <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
                     <Button onClick={handleRandomSplit} variant="outlined" color="primary" startIcon={<ShuffleIcon />}>פצל אקראית</Button>
+                    <Button onClick={handleSmartSplit} variant="contained" color="secondary">פצל חכם (דירוגים)</Button>
                   </Box>
                   {/* Unassigned players */}
                   {unassignedPlayers.length > 0 && (
@@ -746,7 +790,7 @@ export default function CreateGameNightPage() {
                           return (
                             <Chip
                               key={id}
-                              label={p.name}
+                              label={`${p.name} (${getPlayerAverage(id)})`}
                               avatar={<Avatar>{p.name?.[0] || '?'}</Avatar>}
                               onClick={() => {
                                 // Assign to team with least players
@@ -778,6 +822,9 @@ export default function CreateGameNightPage() {
                         <Typography variant="caption" color={teams[team].length === 7 ? 'success.main' : 'text.secondary'} sx={{ mb: 1, display: 'block', fontSize: { xs: '0.95rem', md: '1rem' } }}>
                           {teams[team].length} / 7
                         </Typography>
+                        <Typography variant="body2" fontWeight={700} color="secondary" sx={{ mb: 1 }}>
+                          ממוצע דירוג: {getTeamAverage(teams[team])}
+                        </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           {teams[team].map((id, idx) => {
                             const p = getPlayer(id);
@@ -797,7 +844,7 @@ export default function CreateGameNightPage() {
                                 }}
                               >
                                 <Chip
-                                  label={p.name}
+                                  label={`${p.name} (${getPlayerAverage(id)})`}
                                   avatar={<Avatar>{p.name?.[0] || '?'}</Avatar>}
                                   color={idx === 0 ? 'primary' : 'default'}
                                   onClick={() => handleUnassign(id)}
@@ -837,8 +884,8 @@ export default function CreateGameNightPage() {
                               sx={{ minHeight: 44 }}
                             >
                               הוסף שחקן
-                            </Button>
-                          </Box>
+                </Button>
+              </Box>
                         )}
                       </Box>
                     ))}
@@ -887,7 +934,7 @@ export default function CreateGameNightPage() {
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                       {selectedPlayers.map(id => {
                         const p = getPlayer(id);
-                        return p ? <Chip key={id} label={p.name} avatar={<Avatar>{p.name?.[0] || '?'}</Avatar>} /> : null;
+                        return p ? <Chip key={id} label={`${p.name} (${getPlayerAverage(id)})`} avatar={<Avatar>{p.name?.[0] || '?'}</Avatar>} /> : null;
                       })}
                     </Box>
                     <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>קבוצות:</Typography>
@@ -898,6 +945,9 @@ export default function CreateGameNightPage() {
                           <Typography variant="caption" color={teams[team].length === 7 ? 'success.main' : 'text.secondary'} sx={{ mb: 1, display: 'block' }}>
                             {teams[team].length} / 7
                           </Typography>
+                          <Typography variant="body2" fontWeight={700} color="secondary" sx={{ mb: 1 }}>
+                            ממוצע דירוג: {getTeamAverage(teams[team])}
+                          </Typography>
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                             {teams[team].map((id, idx) => {
                               const p = getPlayer(id);
@@ -905,7 +955,7 @@ export default function CreateGameNightPage() {
                               return (
                                 <Box key={id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                   <Chip
-                                    label={p.name}
+                                    label={`${p.name} (${getPlayerAverage(id)})`}
                                     avatar={<Avatar>{p.name?.[0] || '?'}</Avatar>}
                                     color={idx === 0 ? 'primary' : 'default'}
                                     sx={{ fontWeight: 600 }}

@@ -1,4 +1,4 @@
-import { AppBar, Toolbar, Typography, Button, Box, Avatar } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box, Avatar, Chip } from '@mui/material';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/contexts/AdminContext';
@@ -8,6 +8,19 @@ export default function Header() {
   const { user, userData, logout } = useAuth();
   const { isAdmin } = useAdmin();
   const router = useRouter();
+
+  const getUserRoleLabel = (role?: string) => {
+    if (role === 'super-admin') return 'מנהל על';
+    if (role === 'admin') return 'מנהל';
+    if (role === 'user') return 'משתמש';
+    return '';
+  };
+  const getUserRoleColor = (role?: string) => {
+    if (role === 'super-admin') return '#e53935'; // red
+    if (role === 'admin') return '#8e24aa'; // purple
+    if (role === 'user') return '#1976d2'; // blue
+    return '#bdbdbd'; // default grey
+  };
 
   return (
     <AppBar
@@ -48,6 +61,13 @@ export default function Header() {
               <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e3a8a', fontFamily: 'Assistant, Nunito, sans-serif' }}>
                 {user.email}
               </Typography>
+              {userData?.role && (
+                <Chip
+                  label={getUserRoleLabel(userData.role)}
+                  size="small"
+                  sx={{ fontWeight: 700, fontSize: 15, bgcolor: getUserRoleColor(userData.role), color: '#fff', ml: 1 }}
+                />
+              )}
               {userData?.playerName && (
                 <Typography variant="body1" sx={{ fontWeight: 700, color: '#06b6d4', fontFamily: 'Assistant, Nunito, sans-serif', ml: 1 }}>
                   ({userData.playerName})

@@ -49,6 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           userEmail={user?.email || ''}
           userAvatarUrl={user?.photoURL || ''}
           onLogout={logout}
+          userRole={userData?.role}
           tabs={
             <Tabs
               value={currentTab === -1 ? false : currentTab}

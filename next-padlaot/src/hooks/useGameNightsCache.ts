@@ -1,3 +1,4 @@
+'use client';
 // useGameNightsCache: hook for fetching, caching, and subscribing to game nights data
 
 import { useEffect, useState } from 'react';

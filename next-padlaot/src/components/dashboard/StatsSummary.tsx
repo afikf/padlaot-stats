@@ -90,31 +90,31 @@ export default function StatsSummary({ gameNights, players, showMyStatsOnly = fa
 
   return (
     <>
-      <Box
-        sx={{
-          mb: 4,
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: '1fr 1fr',
-            md: 'repeat(5, 1fr)'
-          },
-          gap: 2,
-        }}
-      >
-        {stats.map((stat) => (
-          <Card key={stat.label} sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-            <CardContent>
-              <Typography variant="h6" color="primary" fontWeight={700}>
-                {stat.value}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {stat.label}
-              </Typography>
-            </CardContent>
-          </Card>
-        ))}
-      </Box>
+    <Box
+      sx={{
+        mb: 4,
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: '1fr 1fr',
+          md: 'repeat(5, 1fr)'
+        },
+        gap: 2,
+      }}
+    >
+      {stats.map((stat) => (
+        <Card key={stat.label} sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+          <CardContent>
+            <Typography variant="h6" color="primary" fontWeight={700}>
+              {stat.value}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {stat.label}
+            </Typography>
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
       {filteredGameNights.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <Typography color="text.secondary">

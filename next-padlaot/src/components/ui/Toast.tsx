@@ -94,7 +94,7 @@ export function Toast({ message, type = 'info', duration = 5000, onClose }: Toas
       <div style={{ flex: 1, marginRight: '8px' }}>
         {message}
       </div>
-      
+
       <button
         onClick={handleClose}
         style={{

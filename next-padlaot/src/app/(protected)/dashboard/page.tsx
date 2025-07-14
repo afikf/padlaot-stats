@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Box, Container, Tabs, Tab, Switch, FormControlLabel, Paper } from "@mui/material";
+import { useEffect, useState } from "react";
+import { Box, Container, Tabs, Tab, Switch, FormControlLabel, Paper, Alert, AlertTitle, Button } from "@mui/material";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import AuthGuard from "@/components/auth/AuthGuard";
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,8 @@ import ShowMyStatsSwitch from "@/components/dashboard/ShowMyStatsSwitch";
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import { Fade, Divider } from '@mui/material';
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from '@/lib/firebase/config';
 
 const theme = createTheme({
   direction: "rtl",
@@ -38,6 +40,17 @@ export default function DashboardPage() {
   const [showMyStatsOnly, setShowMyStatsOnly] = useState(false);
   const { user, userData, logout } = useAuth();
   const router = useRouter();
+  const [hasRankingTask, setHasRankingTask] = useState(false);
+
+  // Check for open ranking assignment
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "rankingTasks"), where("userId", "==", user.uid), where("completed", "==", false));
+    const unsub = onSnapshot(q, (snap) => {
+      setHasRankingTask(!snap.empty);
+    });
+    return () => unsub();
+  }, [user]);
 
   console.log('user:', user);
 
@@ -51,6 +64,36 @@ export default function DashboardPage() {
       <ThemeProvider theme={theme}>
         <Box sx={{ minHeight: "100vh", background: "linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 40%, #f0abfc 100%)" }}>
           <Container maxWidth="lg" sx={{ pt: 4 }}>
+            {/* Ranking Assignment Banner */}
+            {hasRankingTask && (
+              <Box
+                sx={{
+                  mb: 3,
+                  p: 3,
+                  borderRadius: 3,
+                  background: 'linear-gradient(90deg, #7c3aed 0%, #a78bfa 100%)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 4px 24px 0 #7c3aed33',
+                }}
+              >
+                <span>
+                  <span style={{ fontSize: '1.4rem', fontWeight: 900, marginLeft: 12 }}>משימת דירוג</span>
+                  יש לך משימת דירוג שחקנים! <b>לחץ כאן כדי לדרג</b>
+                </span>
+                <Button
+                  variant="contained"
+                  sx={{ ml: 2, background: '#fff', color: '#7c3aed', fontWeight: 900, fontSize: '1.1rem', boxShadow: 2, '&:hover': { background: '#ede9fe' } }}
+                  onClick={() => router.push('/rate-players')}
+                >
+                  עבור לדירוג
+                </Button>
+              </Box>
+            )}
             {/* Header */}
             <Header
               title="דשבורד פדלאות"
@@ -63,6 +106,7 @@ export default function DashboardPage() {
               userName={userData?.playerName}
               userAvatarUrl={user?.photoURL || ''}
               onLogout={logout}
+              userRole={userData?.role}
               tabs={
                 <Tabs
                   value={tab}
