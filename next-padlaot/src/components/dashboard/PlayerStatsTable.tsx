@@ -32,7 +32,8 @@ function getPlayerGameStats(playerId: string, gameNights: any[]) {
         for (const mg of night.miniGames) {
           const teamA = night.teams?.[mg.teamA];
           const teamB = night.teams?.[mg.teamB];
-          if ((teamA && teamA.includes(playerId)) || (teamB && teamB.includes(playerId))) {
+          if ((teamA && Array.isArray(teamA.players) && teamA.players.includes(playerId)) ||
+              (teamB && Array.isArray(teamB.players) && teamB.players.includes(playerId))) {
             miniGamesCount++;
           }
         }
@@ -73,9 +74,9 @@ export default function PlayerStatsTable({ showMyStatsOnly }: { showMyStatsOnly?
     const { gameNightsCount, miniGamesCount } = getPlayerGameStats(player.id, gameNights);
     return {
       ...player,
-      goals: player.goals ?? 0,
-      assists: player.assists ?? 0,
-      wins: player.wins ?? 0,
+      goals: player.totalGoals ?? player.goals ?? 0,
+      assists: player.totalAssists ?? player.assists ?? 0,
+      wins: player.totalWins ?? player.wins ?? 0,
       gameNightsCount,
       miniGamesCount,
     };

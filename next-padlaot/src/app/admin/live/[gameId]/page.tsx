@@ -190,44 +190,86 @@ export default function LiveGamePage() {
       const data = gameDaySnap.data();
       const miniGames = Array.isArray(data.miniGames) ? data.miniGames : [];
       const updatedMiniGames = miniGames.filter((g: any) => g.id !== miniGameToDelete.id);
-      
       batch.update(gameDayRef, { miniGames: updatedMiniGames });
       
-      // 2. Update player stats - decrement goals and assists
+      // 2. Update player stats - decrement goals, assists, totalGoals, totalAssists, totalMiniGames, totalWins
       const goals = miniGameToDelete.goals || [];
-      const playerUpdates = new Map<string, { goals: number; assists: number }>();
-      
+      const playerUpdates = new Map<string, { goals: number; assists: number; miniGames: number; wins: number; onlyGameNight?: boolean }>();
+      // Collect all player IDs from both teams
+      const teamAPlayers = (gameDay.teams?.[miniGameToDelete.teamA]?.players || []);
+      const teamBPlayers = (gameDay.teams?.[miniGameToDelete.teamB]?.players || []);
+      const allPlayers = Array.from(new Set([...teamAPlayers, ...teamBPlayers]));
+      // Count goals and assists
       goals.forEach((goal: any) => {
         if (goal.scorerId) {
-          const current = playerUpdates.get(goal.scorerId) || { goals: 0, assists: 0 };
+          const current = playerUpdates.get(goal.scorerId) || { goals: 0, assists: 0, miniGames: 0, wins: 0 };
           current.goals += 1;
           playerUpdates.set(goal.scorerId, current);
         }
         if (goal.assistId) {
-          const current = playerUpdates.get(goal.assistId) || { goals: 0, assists: 0 };
+          const current = playerUpdates.get(goal.assistId) || { goals: 0, assists: 0, miniGames: 0, wins: 0 };
           current.assists += 1;
           playerUpdates.set(goal.assistId, current);
         }
       });
-      
+      // All players played a mini-game
+      allPlayers.forEach(pid => {
+        const current = playerUpdates.get(pid) || { goals: 0, assists: 0, miniGames: 0, wins: 0 };
+        current.miniGames += 1;
+        playerUpdates.set(pid, current);
+      });
+      // Determine winners
+      let winningTeamPlayers: string[] = [];
+      if (miniGameToDelete.status === 'complete') {
+        if (miniGameToDelete.scoreA > miniGameToDelete.scoreB) {
+          winningTeamPlayers = teamAPlayers;
+        } else if (miniGameToDelete.scoreB > miniGameToDelete.scoreA) {
+          winningTeamPlayers = teamBPlayers;
+        }
+      }
+      winningTeamPlayers.forEach(pid => {
+        const current = playerUpdates.get(pid) || { goals: 0, assists: 0, miniGames: 0, wins: 0 };
+        current.wins += 1;
+        playerUpdates.set(pid, current);
+      });
+      // For each player, check if this was their only mini-game in the night
+      allPlayers.forEach(pid => {
+        // Count how many mini-games (after deletion) this player is in
+        const remainingMiniGames = updatedMiniGames.filter((mg: any) => {
+          const tA = gameDay.teams?.[mg.teamA]?.players || [];
+          const tB = gameDay.teams?.[mg.teamB]?.players || [];
+          return tA.includes(pid) || tB.includes(pid);
+        });
+        const wasOnlyMiniGame = remainingMiniGames.length === 0;
+        const prev = playerUpdates.get(pid) || { goals: 0, assists: 0, miniGames: 0, wins: 0 };
+        playerUpdates.set(pid, {
+          goals: prev.goals,
+          assists: prev.assists,
+          miniGames: prev.miniGames,
+          wins: prev.wins,
+          onlyGameNight: wasOnlyMiniGame
+        });
+      });
       // Apply player stat updates
       for (const [playerId, updates] of playerUpdates) {
         const playerRef = doc(db, 'players', playerId);
         const playerSnap = await getDoc(playerRef);
         if (playerSnap.exists()) {
           const playerData = playerSnap.data();
-          const currentGoals = playerData.goals || 0;
-          const currentAssists = playerData.assists || 0;
-          
           batch.update(playerRef, {
-            goals: Math.max(0, currentGoals - updates.goals),
-            assists: Math.max(0, currentAssists - updates.assists)
+            // Legacy fields (if still used)
+            goals: Math.max(0, (playerData.goals || 0) - updates.goals),
+            assists: Math.max(0, (playerData.assists || 0) - updates.assists),
+            // New summary fields
+            totalGoals: Math.max(0, (playerData.totalGoals || 0) - updates.goals),
+            totalAssists: Math.max(0, (playerData.totalAssists || 0) - updates.assists),
+            totalMiniGames: Math.max(0, (playerData.totalMiniGames || 0) - updates.miniGames),
+            totalWins: Math.max(0, (playerData.totalWins || 0) - updates.wins),
+            totalGameNights: updates.onlyGameNight ? Math.max(0, (playerData.totalGameNights || 0) - 1) : (playerData.totalGameNights || 0)
           });
         }
       }
-      
       await batch.commit();
-      
       showToast('מיני-משחק נמחק בהצלחה', 'success');
       setDeleteDialogOpen(false);
       setMiniGameToDelete(null);

@@ -20,6 +20,7 @@ import AddIcon from '@mui/icons-material/Add';
 import { useToast } from '@/contexts/ToastContext';
 import { useSearchParams } from 'next/navigation';
 import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
+import { useAuth } from '@/contexts/AuthContext';
 
 const steps = [
   'בחירת תאריך',
@@ -63,6 +64,7 @@ export default function CreateGameNightPage() {
   // Add state for date conflict dialog
   const [dateConflictDialogOpen, setDateConflictDialogOpen] = useState(false);
   const [conflictingDate, setConflictingDate] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // Steps: remove step 4 if in edit mode
   const steps = isEditMode
@@ -181,7 +183,8 @@ export default function CreateGameNightPage() {
           teams: { A: { players: [] }, B: { players: [] }, C: { players: [] } },
           miniGames: [],
           fromSubscription: true,
-          subscriptionDay: pendingSubscriptionDay
+          subscriptionDay: pendingSubscriptionDay,
+          createdBy: user?.uid || null,
         };
         const docId = await firestore.addDoc('gameDays', gameNightData);
         setGameNightId(docId);
@@ -282,7 +285,8 @@ export default function CreateGameNightPage() {
           status: 0, // draft
           participants: [],
           teams: { A: { players: [] }, B: { players: [] }, C: { players: [] } },
-          miniGames: []
+          miniGames: [],
+          createdBy: user?.uid || null,
         };
         const docId = await firestore.addDoc('gameDays', gameNightData);
         setGameNightId(docId);

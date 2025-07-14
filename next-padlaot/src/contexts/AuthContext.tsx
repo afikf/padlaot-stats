@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { getUserData, type UserData } from '@/lib/firebase/users';
+import { getUserData, type UserData, createUser } from '@/lib/firebase/users';
 import { useToast } from './ToastContext';
 
 interface AuthContextType {
@@ -11,6 +11,7 @@ interface AuthContextType {
   userData: UserData | null;
   loading: boolean;
   logout: () => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   userData: null,
   loading: true,
   logout: async () => {},
+  refreshUserData: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -42,7 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (user?.uid) {
           // Get user data by UID
-          const data = await getUserData(user.uid);
+          let data = await getUserData(user.uid);
+          if (!data) {
+            // User doc does not exist, create it
+            await createUser(user.uid, user.email || '');
+            data = await getUserData(user.uid);
+          }
           if (isSubscribed) {
             setUser(user);
             setUserData(data);
@@ -76,6 +83,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [showToast]);
 
+  // Add refreshUserData to allow manual reload of userData
+  const refreshUserData = async () => {
+    if (user?.uid) {
+      const data = await getUserData(user.uid);
+      setUserData(data);
+    }
+  };
+
   // Handle logout
   const handleLogout = async () => {
     console.log('Handling logout');
@@ -88,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     userData,
     loading,
     logout: handleLogout,
+    refreshUserData,
   };
 
   return (

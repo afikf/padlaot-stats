@@ -58,18 +58,17 @@ export async function connectUserToPlayer(uid: string, playerId: string, playerN
   }
 }
 
-export async function createUser(uid: string, email: string, role: UserData['role'] = 'user'): Promise<void> {
+export async function createUser(uid: string, email: string | null | undefined, role: UserData['role'] = 'user'): Promise<void> {
   try {
     const now = Date.now();
-    const userData: UserData = {
+    const userData: any = {
       uid,
-      email,
+      email: email || '',
       role,
-      playerId: undefined,
-      playerName: undefined,
       createdAt: now,
       updatedAt: now
     };
+    // Do not include playerId or playerName if not set
     await setDoc(doc(db, 'users', uid), userData);
   } catch (error) {
     console.error('Error creating user:', error);

@@ -136,7 +136,7 @@ const theme = createTheme({
 
 export default function SelectPlayerPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUserData } = useAuth();
   const { showToast } = useToast();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,8 +170,9 @@ export default function SelectPlayerPage() {
       setError(null);
       console.log('Connecting user to player:', { uid: user.uid, playerId: player.id, playerName: player.name });
       await connectUserToPlayer(user.uid, player.id, player.name);
+      await refreshUserData(); // Force update of userData
       showToast('נבחר השחקן ' + player.name + ' בהצלחה!', 'success');
-      window.location.href = '/dashboard'; // Force full reload to refresh userData
+      window.location.href = '/dashboard';
     } catch (err) {
       setError('שגיאה בחיבור השחקן. אנא נסה שוב.');
       setConnecting(false);

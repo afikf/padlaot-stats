@@ -55,8 +55,10 @@ export default function DashboardPage() {
             <Header
               title="דשבורד פדלאות"
               logoSrc="/logo.jpeg"
-              navButtonLabel="פאנל ניהול"
-              onNavButtonClick={() => router.push('/admin')}
+              {...((userData?.role === 'admin' || userData?.role === 'super-admin') && {
+                navButtonLabel: "פאנל ניהול",
+                onNavButtonClick: () => router.push('/admin'),
+              })}
               userEmail={user?.email || ''}
               userName={userData?.playerName}
               userAvatarUrl={user?.photoURL || ''}
