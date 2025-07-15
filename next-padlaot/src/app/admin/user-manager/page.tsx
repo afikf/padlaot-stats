@@ -10,6 +10,8 @@ import { db } from '@/lib/firebase/config';
 import { useToast } from '@/contexts/ToastContext';
 import { useUsersCache } from '@/hooks/useUsersCache';
 import { usePlayersCache } from '@/hooks/usePlayersCache';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 
 export default function UserManagerPage() {
   // All hooks at the top
@@ -31,6 +33,9 @@ export default function UserManagerPage() {
   const filteredUsers = searchEmail && searchEmail.trim() !== ''
     ? users.filter(u => u.email && u.email.toLowerCase().includes(searchEmail.toLowerCase()))
     : users;
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Early returns
   if (loading) return null;
@@ -154,14 +159,25 @@ export default function UserManagerPage() {
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', py: 4 }}>
       {/* Search bar styled like player management */}
-      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center', maxWidth: 500, mx: 'auto' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: 2,
+          mb: 3,
+          flexWrap: 'wrap',
+          alignItems: isMobile ? 'stretch' : 'center',
+          maxWidth: 500,
+          mx: 'auto',
+        }}
+      >
         <Autocomplete
           options={emailOptions}
           value={searchEmail}
           onInputChange={(_, v) => setSearchEmail(v)}
           freeSolo
           clearOnEscape
-          sx={{ minWidth: 240, flex: 1 }}
+          sx={{ minWidth: isMobile ? '100%' : 240, flex: 1, width: isMobile ? '100%' : 'auto' }}
           renderInput={params => (
             <TextField
               {...params}
@@ -187,64 +203,112 @@ export default function UserManagerPage() {
       <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
         ניהול משתמשים
       </Typography>
-      <TableContainer component={Paper} sx={{ mt: 4 }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell align="center">מזהה משתמש</TableCell>
-              <TableCell align="center">אימייל</TableCell>
-              <TableCell align="center">שחקן משויך</TableCell>
-              <TableCell align="center">פעולות</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredUsers.map(user => {
-              const linkedPlayer = user.playerId ? players.find((p: any) => p.id === user.playerId) : null;
-              return (
-                <TableRow key={user.uid}>
-                  <TableCell
-                    align="center"
-                    sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, textDecoration: 'underline' }}
-                    onClick={() => handleRoleDialog(user)}
+      {isMobile ? (
+        <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {filteredUsers.map(user => {
+            const linkedPlayer = user.playerId ? players.find((p: any) => p.id === user.playerId) : null;
+            return (
+              <Paper key={user.uid} sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography fontWeight={700} color="primary" sx={{ textDecoration: 'underline', cursor: 'pointer' }} onClick={() => handleRoleDialog(user)}>
+                    מזהה משתמש:
+                  </Typography>
+                  <Typography sx={{ wordBreak: 'break-all' }}>{user.uid}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography fontWeight={700}>אימייל:</Typography>
+                  <Typography sx={{ wordBreak: 'break-all' }}>{user.email}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography fontWeight={700}>שחקן משויך:</Typography>
+                  {linkedPlayer ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography>{linkedPlayer.name}</Typography>
+                      <IconButton size="small" color="error" onClick={() => handleUnlinkPlayer(user)} disabled={unlinking}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <Typography color="text.secondary">—</Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                  <Typography fontWeight={700}>פעולות:</Typography>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<DeleteIcon />}
+                    onClick={() => handleRemoveUser(user)}
+                    disabled={isSelf(user) || (user.role === 'super-admin' && superAdminCount <= 1)}
                   >
-                    {user.uid}
-                  </TableCell>
-                  <TableCell align="center">{user.email}</TableCell>
-                  <TableCell align="center">
-                    {linkedPlayer ? (
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                        {linkedPlayer.name}
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleUnlinkPlayer(user)}
-                          disabled={unlinking}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
-                    ) : (
-                      <Typography color="text.secondary">—</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="center">
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      startIcon={<DeleteIcon />}
-                      onClick={() => handleRemoveUser(user)}
-                      disabled={isSelf(user) || (user.role === 'super-admin' && superAdminCount <= 1)}
+                    הסר
+                  </Button>
+                </Box>
+              </Paper>
+            );
+          })}
+        </Box>
+      ) : (
+        <TableContainer component={Paper} sx={{ mt: 4 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell align="center">מזהה משתמש</TableCell>
+                <TableCell align="center">אימייל</TableCell>
+                <TableCell align="center">שחקן משויך</TableCell>
+                <TableCell align="center">פעולות</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredUsers.map(user => {
+                const linkedPlayer = user.playerId ? players.find((p: any) => p.id === user.playerId) : null;
+                return (
+                  <TableRow key={user.uid}>
+                    <TableCell
+                      align="center"
+                      sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, textDecoration: 'underline' }}
+                      onClick={() => handleRoleDialog(user)}
                     >
-                      הסר
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                      {user.uid}
+                    </TableCell>
+                    <TableCell align="center">{user.email}</TableCell>
+                    <TableCell align="center">
+                      {linkedPlayer ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                          {linkedPlayer.name}
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleUnlinkPlayer(user)}
+                            disabled={unlinking}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ) : (
+                        <Typography color="text.secondary">—</Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => handleRemoveUser(user)}
+                        disabled={isSelf(user) || (user.role === 'super-admin' && superAdminCount <= 1)}
+                      >
+                        הסר
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* Remove User Confirmation Dialog */}
       <Dialog open={removeDialogOpen} onClose={() => setRemoveDialogOpen(false)}>

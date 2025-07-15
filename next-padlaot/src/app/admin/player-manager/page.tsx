@@ -18,6 +18,8 @@ import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
 import SubscriptionsIcon from '@mui/icons-material/HowToReg';
 import PersonIcon from '@mui/icons-material/Person';
 import StarIcon from '@mui/icons-material/Star';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 
 export default function PlayerManagerPage() {
   const { players, loading, error } = usePlayersCache();
@@ -364,6 +366,9 @@ export default function PlayerManagerPage() {
     return '';
   };
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
     <Box sx={{ maxWidth: 1100, mx: 'auto', py: 4 }}>
       <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
@@ -371,8 +376,19 @@ export default function PlayerManagerPage() {
       </Typography>
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Paper sx={{ p: 2, mb: 2, display: 'flex', alignItems: 'center', gap: 3, borderRadius: 2, bgcolor: 'background.paper' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Paper
+            sx={{
+              p: 2,
+              mb: 2,
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'stretch' : 'center',
+              gap: isMobile ? 2 : 3,
+              borderRadius: 2,
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
               <SubscriptionsIcon color={showOnlySubscriptions ? 'primary' : 'disabled'} />
               <Switch
                 checked={showOnlySubscriptions}
@@ -382,7 +398,7 @@ export default function PlayerManagerPage() {
               />
               <Typography variant="body2">הצג רק מנויים</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
               <PersonIcon color={showOnlyLinkedUsers ? 'primary' : 'disabled'} />
               <Switch
                 checked={showOnlyLinkedUsers}
@@ -392,7 +408,7 @@ export default function PlayerManagerPage() {
               />
               <Typography variant="body2">הצג רק שחקנים עם משתמש מקושר</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
               <StarIcon color={showOnlyActivePlayers ? 'primary' : 'disabled'} />
               <Switch
                 checked={showOnlyActivePlayers}
@@ -402,26 +418,38 @@ export default function PlayerManagerPage() {
               />
               <Typography variant="body2">הצג שחקנים פעילים</Typography>
             </Box>
-            <Box sx={{ flex: 1 }} />
+            <Box sx={{ flex: isMobile ? 'none' : 1, height: isMobile ? 0 : 'auto' }} />
             <TextField
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="חפש שחקן"
               variant="outlined"
               size="small"
-              sx={{ minWidth: 200 }}
+              sx={{ minWidth: isMobile ? '100%' : 200, width: isMobile ? '100%' : 'auto' }}
             />
             <Button
               variant="contained"
               color="primary"
               onClick={() => setAddDialogOpen(true)}
               startIcon={<AddIcon sx={{ ml: 1 }} />}
-              sx={{ direction: 'rtl', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              sx={{
+                direction: 'rtl',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: isMobile ? '100%' : 'auto',
+                mt: isMobile ? 1 : 0,
+              }}
             >
               הוסף שחקן
             </Button>
             {isSuperAdmin && (
-              <Button variant="contained" color="primary" onClick={() => setAssignDialogOpen(true)}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => setAssignDialogOpen(true)}
+                sx={{ width: isMobile ? '100%' : 'auto', mt: isMobile ? 1 : 0 }}
+              >
                 הקצה משימת דירוג
               </Button>
             )}

@@ -102,10 +102,10 @@ export default function PlayerStatsTable({ showMyStatsOnly }: { showMyStatsOnly?
       <Box sx={{ mb: 2, textAlign: 'left', fontWeight: 600 }}>
         מספר שחקנים: {sortedPlayers.length}
       </Box>
-      <TableContainer component={Paper} sx={{ borderRadius: 3 }}>
-        <Table>
+      <TableContainer component={Paper} sx={{ borderRadius: 3, maxHeight: 480, overflowY: 'auto' }}>
+        <Table stickyHeader>
           <TableHead>
-            <TableRow>
+            <TableRow sx={{ position: 'sticky', top: 0, zIndex: 1, background: 'background.paper' }}>
               <TableCell align="center">
                 <TableSortLabel
                   active={orderBy === 'name'}

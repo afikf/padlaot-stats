@@ -52,6 +52,7 @@ export default function LiveGamePage() {
   // Add a state to track if a score increase is pending a goal addition
   const [pendingScoreTeam, setPendingScoreTeam] = useState<null | 'A' | 'B'>(null);
   const [completingGame, setCompletingGame] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -582,565 +583,838 @@ export default function LiveGamePage() {
     }
   }
 
+  // Find the most recent mini game that is pending or live
+  const liveMini = Array.isArray(gameDay.miniGames)
+    ? [...gameDay.miniGames].reverse().find((g: any) => g.status === 'pending' || g.status === 'live')
+    : null;
+
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
-      <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
-        {isEditCompleted ? 'ערוך ערב משחק שהסתיים' : 'ניהול משחק חי'}
-      </Typography>
-      {/* Complete Game Night Button */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-        <Tooltip
-          title={isEditCompleted ? '' : (allMiniGamesComplete ? '' : 'כל המיני-משחקים חייבים להסתיים לפני שניתן להשלים את ערב המשחק')}
-          arrow
-          disableHoverListener={isEditCompleted ? true : allMiniGamesComplete}
-        >
-          <span>
-            <Button
-              variant="contained"
-              color="success"
-              disabled={isEditCompleted ? completingGame : (!allMiniGamesComplete || completingGame)}
-              onClick={isEditCompleted ? handleSaveEdit : handleCompleteGameNight}
-              sx={{ fontWeight: 700, fontSize: 18, px: 4 }}
-            >
-              {completingGame ? (isEditCompleted ? 'שומר...' : 'משלים...') : (isEditCompleted ? 'שמור שינויים' : 'השלם ערב משחק')}
-            </Button>
-          </span>
-        </Tooltip>
-      </Box>
-      {/* Game night stats summary - modern card grid */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 4 }}>
-        <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-          <CardContent>
-            <Typography variant="h6" color="primary" fontWeight={700}>{numMiniGames}</Typography>
-            <Typography variant="body2" color="text.secondary">מספר מיני-משחקים</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>סה"כ שערים: {allGoals.length}</Typography>
-          </CardContent>
-        </Card>
-        <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-          <CardContent>
-            <Typography variant="h6" color="primary" fontWeight={700}>{avgDurationStr}</Typography>
-            <Typography variant="body2" color="text.secondary">משך ממוצע למיני-משחק</Typography>
-          </CardContent>
-        </Card>
-        <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-          <CardContent>
-            <Box>
-              {Object.keys(teams).map(teamKey => {
-                const teamObj = teams[teamKey];
-                return (
-                  <Box key={teamKey} sx={{ mb: 1 }}>
-                    <Typography fontWeight={700} color="primary" sx={{ fontSize: 16 }}>
-                      {`קבוצת ${getTeamDisplayName(teamObj)}`}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      משחקים: {gamesPerTeam[teamKey]} | נצחונות: {winsPerTeam[teamKey]}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Box>
-          </CardContent>
-        </Card>
-        {/* Top Scorer Card */}
-        <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-          <CardContent>
-            <Typography variant="body2" color="text.secondary">מלך השערים</Typography>
-            <Typography variant="h6" fontWeight={700} color="primary">{topScorerName}</Typography>
-            {/* List all scorers except the top scorer */}
-            <Box sx={{ mt: 1 }}>
-              {allScorers.filter((s) => s.name !== (topScorerName.split(' (')[0])).map((s, i) => (
-                <Typography key={s.name + i} variant="body2" color="text.secondary">
-                  {s.name} ({s.count})
+    <Box sx={{ maxWidth: 900, mx: 'auto', py: 4, position: 'relative' }}>
+      {/* MOBILE: Floating live game bar at the bottom when a mini game is live */}
+      {isMobile && liveMini && (
+        <Box sx={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          width: '100vw',
+          zIndex: 1200,
+          bgcolor: '#fffbe6',
+          boxShadow: 12,
+          px: 1,
+          py: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          height: '48vh',
+          borderTop: '4px solid #ff9800',
+        }}>
+          <Box key={liveMini.id} sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            p: 1,
+            border: '2px solid #1976d2',
+            borderRadius: 2,
+            boxShadow: 3,
+            bgcolor: 'background.paper',
+            minHeight: 220,
+            height: '100%',
+            overflow: 'hidden',
+          }}>
+            {/* Scrollable content area */}
+            <Box sx={{ flex: 1, overflowY: 'auto' }}>
+              {/* Team A: captain + score, goals */}
+              <Box sx={{ textAlign: 'center', mb: 0.5 }}>
+                <Typography variant="subtitle2" fontWeight={600}>
+                  {`קבוצת ${getPlayerName(gameDay.teams?.[liveMini.teamA]?.captain || liveMini.teamA)} ${liveMini.scoreA}`}
                 </Typography>
-              ))}
-            </Box>
-          </CardContent>
-        </Card>
-        {/* Top Assist Card */}
-        <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
-          <CardContent>
-            <Typography variant="body2" color="text.secondary">מלך הבישולים</Typography>
-            <Typography variant="h6" fontWeight={700} color="primary">{topAssistName}</Typography>
-            {/* List all assisters except the top assister */}
-            <Box sx={{ mt: 1 }}>
-              {allAssisters.filter((a) => a.name !== (topAssistName.split(' (')[0])).map((a, i) => (
-                <Typography key={a.name + i} variant="body2" color="text.secondary">
-                  {a.name} ({a.count})
-                </Typography>
-              ))}
-            </Box>
-          </CardContent>
-        </Card>
-      </Box>
-      <Card>
-        <CardContent>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6" fontWeight={700} gutterBottom>
-              מיני-משחקים
-            </Typography>
-            <Button variant="contained" color="primary" onClick={() => setMiniGameDialogOpen(true)} disabled={hasActiveGame}>
-              צור מיני-משחק חדש
-            </Button>
-          </Box>
-          {Array.isArray(gameDay.miniGames) && gameDay.miniGames.length > 0 ? (
-            <Box>
-              {[...gameDay.miniGames].reverse().map((mini: any, idx: number) => (
-                isMobile ? (
-                  // MOBILE LAYOUT
-                  <Box key={mini.id || idx} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2 }}>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      {/* Team A: captain + score, goals */}
-                      <Box sx={{ textAlign: 'center', mb: 0.5 }}>
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamA]?.captain || mini.teamA)} ${mini.scoreA}`}
-                        </Typography>
-                        {(mini.goals || []).filter((g: any) => g.team === mini.teamA).map((g: any, i: number) => {
-                          const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
-                          const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
-                          return (
-                            <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
-                              {assist ? `${scorer} (${assist})` : scorer}
-                            </Typography>
-                          );
-                        })}
-                      </Box>
-                      {/* Space between teams */}
-                      <Box sx={{ height: 12 }} />
-                      {/* Team B: captain + score, goals */}
-                      <Box sx={{ textAlign: 'center', mb: 0.5 }}>
-                        <Typography variant="subtitle2" fontWeight={600}>
-                          {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamB]?.captain || mini.teamB)} ${mini.scoreB}`}
-                        </Typography>
-                        {(mini.goals || []).filter((g: any) => g.team === mini.teamB).map((g: any, i: number) => {
-                          const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
-                          const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
-                          return (
-                            <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
-                              {assist ? `${scorer} (${assist})` : scorer}
-                            </Typography>
-                          );
-                        })}
-                      </Box>
-                      {/* Duration, status, edit/delete in a row */}
-                      <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                        <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1rem' }}>
-                          {mini.status === 'complete' && mini.startTime && mini.endTime ? `משך: ${formatDuration(mini.startTime, mini.endTime)}` : ''}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                          סטטוס: {getStatusLabel(mini.status)}
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
-                          <IconButton
-                            color="primary"
-                            size="medium"
-                            onClick={() => openEditDialog(mini)}
-                            disabled={mini.status === 'live'}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton
-                            color="error"
-                            size="medium"
-                            onClick={() => {
-                              setMiniGameToDelete(mini);
-                              setDeleteDialogOpen(true);
-                            }}
-                            disabled={mini.status === 'live'}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Box>
-                      </Box>
-                      {/* Timer and add goal button */}
-                      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
-                        {(mini.status === 'live' || mini.status === 'pending') && (
-                          <GameTimer miniGame={mini} gameDayId={gameDay.id} />
-                        )}
-                        {mini.status === 'live' && (
-                          <Button variant="contained" color="secondary" sx={{ mt: 2 }} onClick={() => { setGoalDialogOpen(true); setGoalMiniGameId(mini.id); }}>
-                            הוסף שער
-                          </Button>
-                        )}
-                      </Box>
-                    </Box>
-                  </Box>
-                ) : (
-                  // DESKTOP LAYOUT (previous version)
-                  <Box key={mini.id || idx} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      {/* Left side: All main game info, stick to left edge */}
-                      <Box sx={{ flex: 'none', alignItems: 'flex-end', textAlign: 'right', pr: 0, display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start' }}>
-                          <Box sx={{ pr: 0, mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
-                            <Typography variant="subtitle2" fontWeight={600}>
-                              {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamA]?.captain || mini.teamA)}`}
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
-                              {(mini.goals || []).filter((g: any) => g.team === mini.teamA).map((g: any, i: number) => {
-                                const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
-                                const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
-                                return (
-                                  <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'right' }}>
-                                    {assist ? `${scorer} (${assist})` : scorer}
-                                  </Typography>
-                                );
-                              })}
-                            </Box>
-                          </Box>
-                          <Typography variant="h5" fontWeight={900}>
-                            {`${mini.scoreA} - ${mini.scoreB}`}
-                          </Typography>
-                          <Box sx={{ pr: 0, ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
-                            <Typography variant="subtitle2" fontWeight={600}>
-                              {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamB]?.captain || mini.teamB)}`}
-                            </Typography>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
-                              {(mini.goals || []).filter((g: any) => g.team === mini.teamB).map((g: any, i: number) => {
-                                const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
-                                const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
-                                return (
-                                  <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'right' }}>
-                                    {assist ? `${scorer} (${assist})` : scorer}
-                                  </Typography>
-                                );
-                              })}
-                            </Box>
-                          </Box>
-                        </Box>
-                      </Box>
-                      {/* Right side: Duration, Status, and Delete Button */}
-                      <Box sx={{ minWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                        {mini.status === 'complete' && mini.startTime && mini.endTime && (
-                          <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1.1rem', mb: 1 }}>
-                            משך: {formatDuration(mini.startTime, mini.endTime)}
-                          </Typography>
-                        )}
-                        <Typography variant="body2" sx={{ color: 'text.secondary' }}>סטטוס: {getStatusLabel(mini.status)}</Typography>
-                        <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mt: 1 }}>
-                          <IconButton
-                            color="primary"
-                            size="small"
-                            onClick={() => openEditDialog(mini)}
-                            disabled={mini.status === 'live'}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() => {
-                              setMiniGameToDelete(mini);
-                              setDeleteDialogOpen(true);
-                            }}
-                            disabled={mini.status === 'live'}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Box>
-                      </Box>
-                    </Box>
-                    {/* Centered timer and buttons below the right-aligned info */}
-                    <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
-                      {(mini.status === 'live' || mini.status === 'pending') && (
-                        <GameTimer miniGame={mini} gameDayId={gameDay.id} />
-                      )}
-                      {mini.status === 'live' && (
-                        <Button variant="contained" color="secondary" sx={{ mt: 2 }} onClick={() => { setGoalDialogOpen(true); setGoalMiniGameId(mini.id); }}>
-                          הוסף שער
-                        </Button>
-                      )}
-                    </Box>
-                  </Box>
-                )
-              ))}
-            </Box>
-          ) : (
-            <Typography variant="body2" color="text.secondary">אין מיני-משחקים עדיין</Typography>
-          )}
-        </CardContent>
-      </Card>
-      <Dialog open={miniGameDialogOpen} onClose={() => setMiniGameDialogOpen(false)}>
-        <DialogTitle>צור מיני-משחק חדש</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-            <FormControl fullWidth sx={{ minWidth: 120 }}>
-              <InputLabel>קבוצה 1</InputLabel>
-              <Select value={team1} label="קבוצה 1" onChange={e => setTeam1(e.target.value)}>
-                <MenuItem value="" disabled>בחר קבוצה 1</MenuItem>
-                {['A', 'B', 'C'].filter(t => t !== team2).map(t => {
-                  const teamObj = gameDay.teams?.[t];
-                  const captainId = teamObj?.captain;
-                  const captainName = captainId ? getPlayerName(captainId) : t;
+                {(liveMini.goals || []).filter((g: any) => g.team === liveMini.teamA).map((g: any, i: number) => {
+                  const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                  const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
                   return (
-                    <MenuItem key={t} value={t}>{`קבוצת ${captainName}`}</MenuItem>
+                    <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
+                      {assist ? `${scorer} (${assist})` : scorer}
+                    </Typography>
                   );
                 })}
-              </Select>
-            </FormControl>
-            <FormControl fullWidth sx={{ minWidth: 120 }}>
-              <InputLabel>קבוצה 2</InputLabel>
-              <Select value={team2} label="קבוצה 2" onChange={e => setTeam2(e.target.value)}>
-                <MenuItem value="" disabled>בחר קבוצה 2</MenuItem>
-                {['A', 'B', 'C'].filter(t => t !== team1).map(t => {
-                  const teamObj = gameDay.teams?.[t];
-                  const captainId = teamObj?.captain;
-                  const captainName = captainId ? getPlayerName(captainId) : t;
+              </Box>
+              <Box sx={{ height: 12 }} />
+              {/* Team B: captain + score, goals */}
+              <Box sx={{ textAlign: 'center', mb: 0.5 }}>
+                <Typography variant="subtitle2" fontWeight={600}>
+                  {`קבוצת ${getPlayerName(gameDay.teams?.[liveMini.teamB]?.captain || liveMini.teamB)} ${liveMini.scoreB}`}
+                </Typography>
+                {(liveMini.goals || []).filter((g: any) => g.team === liveMini.teamB).map((g: any, i: number) => {
+                  const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                  const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
                   return (
-                    <MenuItem key={t} value={t}>{`קבוצת ${captainName}`}</MenuItem>
+                    <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
+                      {assist ? `${scorer} (${assist})` : scorer}
+                    </Typography>
                   );
                 })}
-              </Select>
-            </FormControl>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setMiniGameDialogOpen(false)} disabled={creatingMiniGame}>ביטול</Button>
-          <Button onClick={handleCreateMiniGame} variant="contained" color="primary" disabled={!team1 || !team2 || team1 === team2 || creatingMiniGame}>
-            {creatingMiniGame ? 'יוצר...' : 'צור מיני-משחק'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      {/* Add Goal Dialog */}
-      <Dialog open={goalDialogOpen} onClose={() => setGoalDialogOpen(false)}>
-        <DialogTitle>הוסף שער</DialogTitle>
-        <DialogContent>
-          {(() => {
-            if (!Array.isArray(gameDay.miniGames)) return null;
-            const mini = gameDay.miniGames.find((g: any) => g.id === goalMiniGameId);
-            if (!mini) return null;
-            const teamAObj = gameDay.teams?.[mini.teamA];
-            const teamBObj = gameDay.teams?.[mini.teamB];
-            const teamOptions = [
-              { value: mini.teamA, label: `קבוצת ${getTeamDisplayName(teamAObj)}` },
-              { value: mini.teamB, label: `קבוצת ${getTeamDisplayName(teamBObj)}` },
-            ];
-            const selectedTeamObj = goalTeam === mini.teamA ? teamAObj : goalTeam === mini.teamB ? teamBObj : null;
-            const playerIds = selectedTeamObj ? selectedTeamObj.players : [];
-            const options = players.filter((p: any) => playerIds.includes(p.id));
-            return (
-              <Box sx={{ mt: 1, minWidth: 300 }}>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>בחר קבוצה</InputLabel>
-                  <Select value={goalTeam} label="בחר קבוצה" onChange={e => { setGoalTeam(e.target.value); setScorer(null); setAssister(null); }}>
-                    <MenuItem value="" disabled>בחר קבוצה</MenuItem>
-                    {teamOptions.map(opt => (
-                      <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <Autocomplete
-                  options={options}
-                  getOptionLabel={option => option.name}
-                  value={scorer}
-                  onChange={(_, v) => setScorer(v)}
-                  renderInput={params => <TextField {...params} label="מבקיע (חובה) *" required />}
-                  sx={{ mb: 2 }}
-                  disabled={!goalTeam}
-                />
-                <Autocomplete
-                  options={options}
-                  getOptionLabel={option => option.name}
-                  value={assister}
-                  onChange={(_, v) => setAssister(v)}
-                  renderInput={params => <TextField {...params} label="מבשל (אופציונלי)" />}
-                  sx={{ mb: 2 }}
-                  disabled={!goalTeam}
-                />
-                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                  <Button
-                    variant="contained"
+              </Box>
+              {/* Duration, status, edit/delete in a row */}
+              <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+                <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1rem' }}>
+                  {liveMini.status === 'complete' && liveMini.startTime && liveMini.endTime ? `משך: ${formatDuration(liveMini.startTime, liveMini.endTime)}` : ''}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  סטטוס: {getStatusLabel(liveMini.status)}
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
+                  <IconButton
                     color="primary"
-                    disabled={!scorer || !goalTeam || addingGoal}
-                    onClick={() => handleAddGoal(mini)}
+                    size="medium"
+                    onClick={() => openEditDialog(liveMini)}
+                    disabled={liveMini.status === 'live'}
                   >
-                    {addingGoal ? 'מוסיף...' : 'הוסף שער'}
-                  </Button>
-                  <Button onClick={() => {
-                    if (pendingScoreTeam) {
-                      // Revert the score increase
-                      const scoreKey = pendingScoreTeam === 'A' ? 'scoreA' : 'scoreB';
-                      setEditState((prev: any) => ({ ...prev, [scoreKey]: Math.max(0, prev[scoreKey] - 1) }));
-                      setPendingScoreTeam(null);
-                    }
-                    setGoalDialogOpen(false);
-                  }} disabled={addingGoal}>ביטול</Button>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton
+                    color="error"
+                    size="medium"
+                    onClick={() => {
+                      setMiniGameToDelete(liveMini);
+                      setDeleteDialogOpen(true);
+                    }}
+                    disabled={liveMini.status === 'live'}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
                 </Box>
               </Box>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-      {/* Delete Mini-Game Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>מחק מיני-משחק</DialogTitle>
-        <DialogContent>
-          <Typography>
-            האם אתה בטוח שברצונך למחוק מיני-משחק זה? פעולה זו אינה הפיכה.
-          </Typography>
-          {miniGameToDelete && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                {`קבוצת ${getPlayerName(gameDay.teams?.[miniGameToDelete.teamA]?.captain || miniGameToDelete.teamA)} vs קבוצת ${getPlayerName(gameDay.teams?.[miniGameToDelete.teamB]?.captain || miniGameToDelete.teamB)}`}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                תוצאה: {miniGameToDelete.scoreA} - {miniGameToDelete.scoreB}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                שערים: {(miniGameToDelete.goals || []).length}
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deletingMiniGame}>
-            ביטול
-          </Button>
-          <Button 
-            onClick={handleDeleteMiniGame} 
-            variant="contained" 
-            color="error" 
-            disabled={deletingMiniGame}
-          >
-            {deletingMiniGame ? 'מוחק...' : 'מחק'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      {/* Further live management features will go here */}
-      <Dialog fullScreen={isMobile} open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>ערוך מיני-משחק</DialogTitle>
-        <DialogContent>
-          {editState && (
-            <Box>
-              {/* Team names and score steppers */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Box sx={{ textAlign: 'center', flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    {`קבוצת ${getPlayerName(gameDay.teams?.[editState.teamA]?.captain || editState.teamA)}`}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
-                    <Typography variant="h4" color="primary" sx={{ mx: 1 }}>{editState.scoreA}</Typography>
-                    <IconButton size="small" onClick={() => handleScoreChange('A', 1)}>
-                      <AddIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-                <Box sx={{ textAlign: 'center', flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    {`קבוצת ${getPlayerName(gameDay.teams?.[editState.teamB]?.captain || editState.teamB)}`}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
-                    <Typography variant="h4" color="primary" sx={{ mx: 1 }}>{editState.scoreB}</Typography>
-                    <IconButton size="small" onClick={() => handleScoreChange('B', 1)}>
-                      <AddIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-              </Box>
-              {/* Goals list for both teams */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle2" fontWeight={700}>שערים</Typography>
-                {editState.goals.length === 0 && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>אין שערים עדיין</Typography>
+              {/* Timer */}
+              <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                {(liveMini.status === 'live' || liveMini.status === 'pending') && (
+                  <GameTimer miniGame={liveMini} gameDayId={gameDay.id} />
                 )}
-                {editState.goals.map((goal: any, index: number) => (
-                  <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, border: '1px solid #eee', borderRadius: 1, p: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {goal.team === editState.teamA ? `קבוצת ${getPlayerName(gameDay.teams?.[editState.teamA]?.captain || editState.teamA)}` : `קבוצת ${getPlayerName(gameDay.teams?.[editState.teamB]?.captain || editState.teamB)}`}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {getPlayerName(goal.scorerId)}
-                      </Typography>
-                      {goal.assistId && (
-                        <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-                          ({getPlayerName(goal.assistId)})
-                        </Typography>
-                      )}
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <IconButton size="small" onClick={() => openEditGoalDialog(goal.team, index)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteGoal(index)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
               </Box>
             </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ position: isMobile ? 'sticky' : 'static', bottom: 0, bgcolor: 'background.paper', zIndex: 1 }}>
-          <Button onClick={() => setEditDialogOpen(false)} disabled={savingEdit}>
-            ביטול
-          </Button>
-          <Button variant="contained" color="primary" disabled={!canSaveEdit || savingEdit} onClick={handleSaveEdit}>
-            {savingEdit ? 'שומר...' : 'שמור'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      {/* Add Goal Dialog */}
-      <Dialog open={editGoalDialogOpen} onClose={() => setEditGoalDialogOpen(false)} fullScreen={isMobile} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontSize: isMobile ? 22 : undefined, textAlign: isMobile ? 'center' : undefined, mb: isMobile ? 2 : undefined }}>
-          הוסף שער
-        </DialogTitle>
-        <DialogContent sx={{ p: isMobile ? 2 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', maxWidth: 340, mx: 'auto', mt: 3 }}>
-            <FormControl fullWidth sx={{ minWidth: 120 }}>
-              <InputLabel>בחר קבוצה</InputLabel>
-              <Select value={editGoalTeam || ''} label="בחר קבוצה" disabled>
-                {Object.entries(gameDay.teams || {}).map(([teamKey, teamObj]: [string, any]) => (
-                  <MenuItem key={teamKey} value={teamKey}>{`קבוצת ${getPlayerName(teamObj?.captain || teamKey)}`}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Autocomplete
-              options={editGoalTeam && gameDay.teams?.[editGoalTeam]?.players ? players.filter((p: any) => gameDay.teams[editGoalTeam].players.includes(p.id)) : []}
-              getOptionLabel={option => option?.name || ''}
-              value={editGoalScorer}
-              onChange={(_, v) => setEditGoalScorer(v)}
-              renderInput={params => <TextField {...params} label="מבקיע (חובה) *" required sx={{ fontSize: isMobile ? 18 : undefined }} />}
-              sx={{ mb: 2, fontSize: isMobile ? 18 : undefined }}
-              disabled={!editGoalTeam}
-            />
-            <Autocomplete
-              options={editGoalTeam && gameDay.teams?.[editGoalTeam]?.players ? players.filter((p: any) => gameDay.teams[editGoalTeam].players.includes(p.id)) : []}
-              getOptionLabel={option => option?.name || ''}
-              value={editGoalAssister}
-              onChange={(_, v) => setEditGoalAssister(v)}
-              renderInput={params => <TextField {...params} label="מבשל (אופציונלי)" sx={{ fontSize: isMobile ? 18 : undefined }} />}
-              sx={{ mb: 2, fontSize: isMobile ? 18 : undefined }}
-              disabled={!editGoalTeam}
-            />
+            {/* Add Goal button pinned at the bottom, more margin above */}
+            {liveMini.status === 'live' && (
+              <Box sx={{ width: '100%', mt: 2, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                <Button variant="contained" color="secondary" sx={{ width: '100%' }} onClick={() => { setGoalDialogOpen(true); setGoalMiniGameId(liveMini.id); }}>
+                  הוסף שער
+                </Button>
+              </Box>
+            )}
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ position: isMobile ? 'sticky' : 'static', bottom: 0, bgcolor: 'background.paper', zIndex: 1, p: isMobile ? 2 : 3 }}>
+        </Box>
+      )}
+      {/* MOBILE: Floating Action Button for Create New Mini Game (only when no live mini game) */}
+      {isMobile && !liveMini && (
+        <Box sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 2001,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+        }}>
           <Button
             variant="contained"
             color="primary"
-            disabled={!editGoalScorer || !editGoalTeam}
-            onClick={() => {
-              handleSaveGoal();
-              setEditGoalDialogOpen(false);
+            onClick={() => setMiniGameDialogOpen(true)}
+            sx={{
+              borderRadius: '50%',
+              minWidth: 64,
+              minHeight: 64,
+              width: 64,
+              height: 64,
+              boxShadow: 4,
+              p: 0,
+              fontSize: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-            sx={{ fontSize: isMobile ? 18 : undefined, flex: 1 }}
           >
-            {editGoalIndex === null ? 'הוסף שער' : 'עדכן שער'}
+            <AddIcon sx={{ fontSize: 36 }} />
           </Button>
-          <Button onClick={() => {
-            if (pendingScoreTeam) {
-              // Revert the score increase
-              const scoreKey = pendingScoreTeam === 'A' ? 'scoreA' : 'scoreB';
-              setEditState((prev: any) => ({ ...prev, [scoreKey]: Math.max(0, prev[scoreKey] - 1) }));
-              setPendingScoreTeam(null);
-            }
-            setEditGoalDialogOpen(false);
-          }} sx={{ fontSize: isMobile ? 18 : undefined, flex: 1 }}>
-            ביטול
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      )}
+      {/* Add padding to top if sticky bar is present */}
+      <Box sx={{ pt: isMobile && liveMini ? 0 : 0 }}>
+        <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
+          {isEditCompleted ? 'ערוך ערב משחק שהסתיים' : 'ניהול משחק חי'}
+        </Typography>
+        {/* Complete Game Night Button */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Tooltip
+            title={isEditCompleted ? '' : (allMiniGamesComplete ? '' : 'כל המיני-משחקים חייבים להסתיים לפני שניתן להשלים את ערב המשחק')}
+            arrow
+            disableHoverListener={isEditCompleted ? true : allMiniGamesComplete}
+          >
+            <span>
+              <Button
+                variant="contained"
+                color="success"
+                disabled={isEditCompleted ? completingGame : (!allMiniGamesComplete || completingGame)}
+                onClick={isEditCompleted ? handleSaveEdit : handleCompleteGameNight}
+                sx={{ fontWeight: 700, fontSize: 18, px: 4 }}
+              >
+                {completingGame ? (isEditCompleted ? 'שומר...' : 'משלים...') : (isEditCompleted ? 'שמור שינויים' : 'השלם ערב משחק')}
+              </Button>
+            </span>
+          </Tooltip>
+        </Box>
+        {/* MOBILE: Mini games list above stats, stats always expanded */}
+        {isMobile ? (
+          <>
+            {/* Mini games list (including live game management in sticky bar) */}
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" fontWeight={700} gutterBottom>
+                    מיני-משחקים
+                  </Typography>
+                  <Button variant="contained" color="primary" onClick={() => setMiniGameDialogOpen(true)} disabled={hasActiveGame}>
+                    צור מיני-משחק חדש
+                  </Button>
+                </Box>
+                {Array.isArray(gameDay.miniGames) && gameDay.miniGames.length > 0 ? (
+                  <Box>
+                    {([...gameDay.miniGames].reverse()
+                      .filter((mini: any) => !(isMobile && liveMini && mini.id === liveMini.id))
+                    ).map((mini: any, idx: number) => (
+                      // MOBILE LAYOUT
+                      <Box key={mini.id || idx} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {/* Team A: captain + score, goals */}
+                          <Box sx={{ textAlign: 'center', mb: 0.5 }}>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamA]?.captain || mini.teamA)} ${mini.scoreA}`}
+                            </Typography>
+                            {(mini.goals || []).filter((g: any) => g.team === mini.teamA).map((g: any, i: number) => {
+                              const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                              const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
+                              return (
+                                <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
+                                  {assist ? `${scorer} (${assist})` : scorer}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                          {/* Space between teams */}
+                          <Box sx={{ height: 12 }} />
+                          {/* Team B: captain + score, goals */}
+                          <Box sx={{ textAlign: 'center', mb: 0.5 }}>
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamB]?.captain || mini.teamB)} ${mini.scoreB}`}
+                            </Typography>
+                            {(mini.goals || []).filter((g: any) => g.team === mini.teamB).map((g: any, i: number) => {
+                              const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                              const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
+                              return (
+                                <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.92rem', textAlign: 'center', mt: 0.2 }}>
+                                  {assist ? `${scorer} (${assist})` : scorer}
+                                </Typography>
+                              );
+                            })}
+                          </Box>
+                          {/* Duration, status, edit/delete in a row */}
+                          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
+                            <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1rem' }}>
+                              {mini.status === 'complete' && mini.startTime && mini.endTime ? `משך: ${formatDuration(mini.startTime, mini.endTime)}` : ''}
+                            </Typography>
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                              סטטוס: {getStatusLabel(mini.status)}
+                            </Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
+                              <IconButton
+                                color="primary"
+                                size="medium"
+                                onClick={() => openEditDialog(mini)}
+                                disabled={mini.status === 'live'}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                              <IconButton
+                                color="error"
+                                size="medium"
+                                onClick={() => {
+                                  setMiniGameToDelete(mini);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                disabled={mini.status === 'live'}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                          {/* Timer and add goal button */}
+                          <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                            {(mini.status === 'live' || mini.status === 'pending') && (
+                              <GameTimer miniGame={mini} gameDayId={gameDay.id} />
+                            )}
+                            {mini.status === 'live' && (
+                              <Button variant="contained" color="secondary" sx={{ mt: 2 }} onClick={() => { setGoalDialogOpen(true); setGoalMiniGameId(mini.id); }}>
+                                הוסף שער
+                              </Button>
+                            )}
+                          </Box>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">אין מיני-משחקים עדיין</Typography>
+                )}
+              </CardContent>
+            </Card>
+            {/* Stats summary - always expanded on mobile */}
+            <Box sx={{ mt: 2 }}>
+              <Box sx={{ mt: 0 }}>
+                {/* Stats summary - modern card grid (copied from below) */}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 4 }}>
+                  <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" color="primary" fontWeight={700}>{numMiniGames}</Typography>
+                      <Typography variant="body2" color="text.secondary">מספר מיני-משחקים</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>סה"כ שערים: {allGoals.length}</Typography>
+                    </CardContent>
+                  </Card>
+                  <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" color="primary" fontWeight={700}>{avgDurationStr}</Typography>
+                      <Typography variant="body2" color="text.secondary">משך ממוצע למיני-משחק</Typography>
+                    </CardContent>
+                  </Card>
+                  <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                    <CardContent>
+                      <Box>
+                        {Object.keys(teams).map(teamKey => {
+                          const teamObj = teams[teamKey];
+                          return (
+                            <Box key={teamKey} sx={{ mb: 1 }}>
+                              <Typography fontWeight={700} color="primary" sx={{ fontSize: 16 }}>
+                                {`קבוצת ${getTeamDisplayName(teamObj)}`}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                משחקים: {gamesPerTeam[teamKey]} | נצחונות: {winsPerTeam[teamKey]}
+                              </Typography>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                  {/* Top Scorer Card */}
+                  <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">מלך השערים</Typography>
+                      <Typography variant="h6" fontWeight={700} color="primary">{topScorerName}</Typography>
+                      {/* List all scorers except the top scorer */}
+                      <Box sx={{ mt: 1 }}>
+                        {allScorers.filter((s) => s.name !== (topScorerName.split(' (')[0])).map((s, i) => (
+                          <Typography key={s.name + i} variant="body2" color="text.secondary">
+                            {s.name} ({s.count})
+                          </Typography>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                  {/* Top Assist Card */}
+                  <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary">מלך הבישולים</Typography>
+                      <Typography variant="h6" fontWeight={700} color="primary">{topAssistName}</Typography>
+                      {/* List all assisters except the top assister */}
+                      <Box sx={{ mt: 1 }}>
+                        {allAssisters.filter((a) => a.name !== (topAssistName.split(' (')[0])).map((a, i) => (
+                          <Typography key={a.name + i} variant="body2" color="text.secondary">
+                            {a.name} ({a.count})
+                          </Typography>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Box>
+              </Box>
+            </Box>
+            {/* Add extra space at the bottom when the floating bar is present */}
+            {liveMini && <Box sx={{ height: '52vh' }} />}
+          </>
+        ) : (
+          // DESKTOP: original order and always show stats
+          <>
+            {/* Stats summary - modern card grid */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 4 }}>
+              <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" color="primary" fontWeight={700}>{numMiniGames}</Typography>
+                  <Typography variant="body2" color="text.secondary">מספר מיני-משחקים</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>סה"כ שערים: {allGoals.length}</Typography>
+                </CardContent>
+              </Card>
+              <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" color="primary" fontWeight={700}>{avgDurationStr}</Typography>
+                  <Typography variant="body2" color="text.secondary">משך ממוצע למיני-משחק</Typography>
+                </CardContent>
+              </Card>
+              <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                <CardContent>
+                  <Box>
+                    {Object.keys(teams).map(teamKey => {
+                      const teamObj = teams[teamKey];
+                      return (
+                        <Box key={teamKey} sx={{ mb: 1 }}>
+                          <Typography fontWeight={700} color="primary" sx={{ fontSize: 16 }}>
+                            {`קבוצת ${getTeamDisplayName(teamObj)}`}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            משחקים: {gamesPerTeam[teamKey]} | נצחונות: {winsPerTeam[teamKey]}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </CardContent>
+              </Card>
+              {/* Top Scorer Card */}
+              <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">מלך השערים</Typography>
+                  <Typography variant="h6" fontWeight={700} color="primary">{topScorerName}</Typography>
+                  {/* List all scorers except the top scorer */}
+                  <Box sx={{ mt: 1 }}>
+                    {allScorers.filter((s) => s.name !== (topScorerName.split(' (')[0])).map((s, i) => (
+                      <Typography key={s.name + i} variant="body2" color="text.secondary">
+                        {s.name} ({s.count})
+                      </Typography>
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+              {/* Top Assist Card */}
+              <Card sx={{ borderRadius: 3, textAlign: 'center', bgcolor: 'background.paper', boxShadow: 2 }}>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">מלך הבישולים</Typography>
+                  <Typography variant="h6" fontWeight={700} color="primary">{topAssistName}</Typography>
+                  {/* List all assisters except the top assister */}
+                  <Box sx={{ mt: 1 }}>
+                    {allAssisters.filter((a) => a.name !== (topAssistName.split(' (')[0])).map((a, i) => (
+                      <Typography key={a.name + i} variant="body2" color="text.secondary">
+                        {a.name} ({a.count})
+                      </Typography>
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+            {/* Mini games list below stats */}
+            <Card>
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" fontWeight={700} gutterBottom>
+                    מיני-משחקים
+                  </Typography>
+                  <Button variant="contained" color="primary" onClick={() => setMiniGameDialogOpen(true)} disabled={hasActiveGame}>
+                    צור מיני-משחק חדש
+                  </Button>
+                </Box>
+                {Array.isArray(gameDay.miniGames) && gameDay.miniGames.length > 0 ? (
+                  <Box>
+                    {([...gameDay.miniGames].reverse()
+                      .filter((mini: any) => !(isMobile && liveMini && mini.id === liveMini.id))
+                    ).map((mini: any, idx: number) => (
+                      // DESKTOP LAYOUT (previous version)
+                      <Box key={mini.id || idx} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          {/* Left side: All main game info, stick to left edge */}
+                          <Box sx={{ flex: 'none', alignItems: 'flex-end', textAlign: 'right', pr: 0, display: 'flex', flexDirection: 'column' }}>
+                            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start' }}>
+                              <Box sx={{ pr: 0, mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
+                                <Typography variant="subtitle2" fontWeight={600}>
+                                  {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamA]?.captain || mini.teamA)}`}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
+                                  {(mini.goals || []).filter((g: any) => g.team === mini.teamA).map((g: any, i: number) => {
+                                    const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                                    const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
+                                    return (
+                                      <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'right' }}>
+                                        {assist ? `${scorer} (${assist})` : scorer}
+                                      </Typography>
+                                    );
+                                  })}
+                                </Box>
+                              </Box>
+                              <Typography variant="h5" fontWeight={900}>
+                                {`${mini.scoreA} - ${mini.scoreB}`}
+                              </Typography>
+                              <Box sx={{ pr: 0, ml: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
+                                <Typography variant="subtitle2" fontWeight={600}>
+                                  {`קבוצת ${getPlayerName(gameDay.teams?.[mini.teamB]?.captain || mini.teamB)}`}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', direction: 'rtl' }}>
+                                  {(mini.goals || []).filter((g: any) => g.team === mini.teamB).map((g: any, i: number) => {
+                                    const scorer = players.find((p: any) => p.id === g.scorerId)?.name || g.scorerId;
+                                    const assist = g.assistId ? (players.find((p: any) => p.id === g.assistId)?.name || g.assistId) : null;
+                                    return (
+                                      <Typography key={i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'right' }}>
+                                        {assist ? `${scorer} (${assist})` : scorer}
+                                      </Typography>
+                                    );
+                                  })}
+                                </Box>
+                              </Box>
+                            </Box>
+                          </Box>
+                          {/* Right side: Duration, Status, and Delete Button */}
+                          <Box sx={{ minWidth: 140, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            {mini.status === 'complete' && mini.startTime && mini.endTime && (
+                              <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1.1rem', mb: 1 }}>
+                                משך: {formatDuration(mini.startTime, mini.endTime)}
+                              </Typography>
+                            )}
+                            <Typography variant="body2" sx={{ color: 'text.secondary' }}>סטטוס: {getStatusLabel(mini.status)}</Typography>
+                            <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mt: 1 }}>
+                              <IconButton
+                                color="primary"
+                                size="small"
+                                onClick={() => openEditDialog(mini)}
+                                disabled={mini.status === 'live'}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                              <IconButton
+                                color="error"
+                                size="small"
+                                onClick={() => {
+                                  setMiniGameToDelete(mini);
+                                  setDeleteDialogOpen(true);
+                                }}
+                                disabled={mini.status === 'live'}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        </Box>
+                        {/* Centered timer and buttons below the right-aligned info */}
+                        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+                          {(mini.status === 'live' || mini.status === 'pending') && (
+                            <GameTimer miniGame={mini} gameDayId={gameDay.id} />
+                          )}
+                          {mini.status === 'live' && (
+                            <Button variant="contained" color="secondary" sx={{ mt: 2 }} onClick={() => { setGoalDialogOpen(true); setGoalMiniGameId(mini.id); }}>
+                              הוסף שער
+                            </Button>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">אין מיני-משחקים עדיין</Typography>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+        <Dialog open={miniGameDialogOpen} onClose={() => setMiniGameDialogOpen(false)} fullScreen={isMobile} maxWidth="xs" fullWidth>
+          <DialogTitle>צור מיני-משחק חדש</DialogTitle>
+          <DialogContent
+            sx={{
+              maxHeight: { xs: '70vh', sm: '60vh' },
+              overflowY: 'auto',
+              minWidth: { xs: 260, sm: 400 },
+              p: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', gap: 2, mt: 1, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <FormControl fullWidth sx={{ minWidth: 120 }}>
+                <InputLabel>קבוצה 1</InputLabel>
+                <Select value={team1} label="קבוצה 1" onChange={e => setTeam1(e.target.value)}>
+                  <MenuItem value="" disabled>בחר קבוצה 1</MenuItem>
+                  {['A', 'B', 'C'].filter(t => t !== team2).map(t => {
+                    const teamObj = gameDay.teams?.[t];
+                    const captainId = teamObj?.captain;
+                    const captainName = captainId ? getPlayerName(captainId) : t;
+                    return (
+                      <MenuItem key={t} value={t}>{`קבוצת ${captainName}`}</MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth sx={{ minWidth: 120 }}>
+                <InputLabel>קבוצה 2</InputLabel>
+                <Select value={team2} label="קבוצה 2" onChange={e => setTeam2(e.target.value)}>
+                  <MenuItem value="" disabled>בחר קבוצה 2</MenuItem>
+                  {['A', 'B', 'C'].filter(t => t !== team1).map(t => {
+                    const teamObj = gameDay.teams?.[t];
+                    const captainId = teamObj?.captain;
+                    const captainName = captainId ? getPlayerName(captainId) : t;
+                    return (
+                      <MenuItem key={t} value={t}>{`קבוצת ${captainName}`}</MenuItem>
+                    );
+                  })}
+                </Select>
+              </FormControl>
+            </Box>
+          </DialogContent>
+          <DialogActions
+            sx={{
+              position: { xs: 'sticky', sm: 'static' },
+              bottom: 0,
+              bgcolor: 'background.paper',
+              zIndex: 1,
+              p: 2,
+            }}
+          >
+            <Button onClick={() => setMiniGameDialogOpen(false)} disabled={creatingMiniGame}>ביטול</Button>
+            <Button onClick={handleCreateMiniGame} variant="contained" color="primary" disabled={!team1 || !team2 || team1 === team2 || creatingMiniGame}>
+              {creatingMiniGame ? 'יוצר...' : 'צור מיני-משחק'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+        {/* Add Goal Dialog */}
+        <Dialog open={goalDialogOpen} onClose={() => setGoalDialogOpen(false)}>
+          <DialogTitle>הוסף שער</DialogTitle>
+          <DialogContent>
+            {(() => {
+              if (!Array.isArray(gameDay.miniGames)) return null;
+              const mini = gameDay.miniGames.find((g: any) => g.id === goalMiniGameId);
+              if (!mini) return null;
+              const teamAObj = gameDay.teams?.[mini.teamA];
+              const teamBObj = gameDay.teams?.[mini.teamB];
+              const teamOptions = [
+                { value: mini.teamA, label: `קבוצת ${getTeamDisplayName(teamAObj)}` },
+                { value: mini.teamB, label: `קבוצת ${getTeamDisplayName(teamBObj)}` },
+              ];
+              const selectedTeamObj = goalTeam === mini.teamA ? teamAObj : goalTeam === mini.teamB ? teamBObj : null;
+              const playerIds = selectedTeamObj ? selectedTeamObj.players : [];
+              const options = players.filter((p: any) => playerIds.includes(p.id));
+              return (
+                <Box sx={{ mt: 1, minWidth: 300 }}>
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>בחר קבוצה</InputLabel>
+                    <Select value={goalTeam} label="בחר קבוצה" onChange={e => { setGoalTeam(e.target.value); setScorer(null); setAssister(null); }}>
+                      <MenuItem value="" disabled>בחר קבוצה</MenuItem>
+                      {teamOptions.map(opt => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Autocomplete
+                    options={options}
+                    getOptionLabel={option => option.name}
+                    value={scorer}
+                    onChange={(_, v) => setScorer(v)}
+                    renderInput={params => <TextField {...params} label="מבקיע (חובה) *" required />}
+                    sx={{ mb: 2 }}
+                    disabled={!goalTeam}
+                  />
+                  <Autocomplete
+                    options={options}
+                    getOptionLabel={option => option.name}
+                    value={assister}
+                    onChange={(_, v) => setAssister(v)}
+                    renderInput={params => <TextField {...params} label="מבשל (אופציונלי)" />}
+                    sx={{ mb: 2 }}
+                    disabled={!goalTeam}
+                  />
+                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      disabled={!scorer || !goalTeam || addingGoal}
+                      onClick={() => handleAddGoal(mini)}
+                    >
+                      {addingGoal ? 'מוסיף...' : 'הוסף שער'}
+                    </Button>
+                    <Button onClick={() => {
+                      if (pendingScoreTeam) {
+                        // Revert the score increase
+                        const scoreKey = pendingScoreTeam === 'A' ? 'scoreA' : 'scoreB';
+                        setEditState((prev: any) => ({ ...prev, [scoreKey]: Math.max(0, prev[scoreKey] - 1) }));
+                        setPendingScoreTeam(null);
+                      }
+                      setGoalDialogOpen(false);
+                    }} disabled={addingGoal}>ביטול</Button>
+                  </Box>
+                </Box>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+        {/* Delete Mini-Game Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>מחק מיני-משחק</DialogTitle>
+          <DialogContent>
+            <Typography>
+              האם אתה בטוח שברצונך למחוק מיני-משחק זה? פעולה זו אינה הפיכה.
+            </Typography>
+            {miniGameToDelete && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {`קבוצת ${getPlayerName(gameDay.teams?.[miniGameToDelete.teamA]?.captain || miniGameToDelete.teamA)} vs קבוצת ${getPlayerName(gameDay.teams?.[miniGameToDelete.teamB]?.captain || miniGameToDelete.teamB)}`}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  תוצאה: {miniGameToDelete.scoreA} - {miniGameToDelete.scoreB}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  שערים: {(miniGameToDelete.goals || []).length}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)} disabled={deletingMiniGame}>
+              ביטול
+            </Button>
+            <Button 
+              onClick={handleDeleteMiniGame} 
+              variant="contained" 
+              color="error" 
+              disabled={deletingMiniGame}
+            >
+              {deletingMiniGame ? 'מוחק...' : 'מחק'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+        {/* Further live management features will go here */}
+        <Dialog fullScreen={isMobile} open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>ערוך מיני-משחק</DialogTitle>
+          <DialogContent>
+            {editState && (
+              <Box>
+                {/* Team names and score steppers */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Box sx={{ textAlign: 'center', flex: 1 }}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {`קבוצת ${getPlayerName(gameDay.teams?.[editState.teamA]?.captain || editState.teamA)}`}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                      <Typography variant="h4" color="primary" sx={{ mx: 1 }}>{editState.scoreA}</Typography>
+                      <IconButton size="small" onClick={() => handleScoreChange('A', 1)}>
+                        <AddIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  <Box sx={{ textAlign: 'center', flex: 1 }}>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      {`קבוצת ${getPlayerName(gameDay.teams?.[editState.teamB]?.captain || editState.teamB)}`}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 1 }}>
+                      <Typography variant="h4" color="primary" sx={{ mx: 1 }}>{editState.scoreB}</Typography>
+                      <IconButton size="small" onClick={() => handleScoreChange('B', 1)}>
+                        <AddIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                </Box>
+                {/* Goals list for both teams */}
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle2" fontWeight={700}>שערים</Typography>
+                  {editState.goals.length === 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>אין שערים עדיין</Typography>
+                  )}
+                  {editState.goals.map((goal: any, index: number) => (
+                    <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, border: '1px solid #eee', borderRadius: 1, p: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {goal.team === editState.teamA ? `קבוצת ${getPlayerName(gameDay.teams?.[editState.teamA]?.captain || editState.teamA)}` : `קבוצת ${getPlayerName(gameDay.teams?.[editState.teamB]?.captain || editState.teamB)}`}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {getPlayerName(goal.scorerId)}
+                        </Typography>
+                        {goal.assistId && (
+                          <Typography variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
+                            ({getPlayerName(goal.assistId)})
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <IconButton size="small" onClick={() => openEditGoalDialog(goal.team, index)}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteGoal(index)}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ position: isMobile ? 'sticky' : 'static', bottom: 0, bgcolor: 'background.paper', zIndex: 1 }}>
+            <Button onClick={() => setEditDialogOpen(false)} disabled={savingEdit}>
+              ביטול
+            </Button>
+            <Button variant="contained" color="primary" disabled={!canSaveEdit || savingEdit} onClick={handleSaveEdit}>
+              {savingEdit ? 'שומר...' : 'שמור'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+        {/* Add Goal Dialog */}
+        <Dialog open={editGoalDialogOpen} onClose={() => setEditGoalDialogOpen(false)} fullScreen={isMobile} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{ fontSize: isMobile ? 22 : undefined, textAlign: isMobile ? 'center' : undefined, mb: isMobile ? 2 : undefined }}>
+            הוסף שער
+          </DialogTitle>
+          <DialogContent sx={{ p: isMobile ? 2 : 3, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%', maxWidth: 340, mx: 'auto', mt: 3 }}>
+              <FormControl fullWidth sx={{ minWidth: 120 }}>
+                <InputLabel>בחר קבוצה</InputLabel>
+                <Select value={editGoalTeam || ''} label="בחר קבוצה" disabled>
+                  {Object.entries(gameDay.teams || {}).map(([teamKey, teamObj]: [string, any]) => (
+                    <MenuItem key={teamKey} value={teamKey}>{`קבוצת ${getPlayerName(teamObj?.captain || teamKey)}`}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Autocomplete
+                options={editGoalTeam && gameDay.teams?.[editGoalTeam]?.players ? players.filter((p: any) => gameDay.teams[editGoalTeam].players.includes(p.id)) : []}
+                getOptionLabel={option => option?.name || ''}
+                value={editGoalScorer}
+                onChange={(_, v) => setEditGoalScorer(v)}
+                renderInput={params => <TextField {...params} label="מבקיע (חובה) *" required sx={{ fontSize: isMobile ? 18 : undefined }} />}
+                sx={{ mb: 2, fontSize: isMobile ? 18 : undefined }}
+                disabled={!editGoalTeam}
+              />
+              <Autocomplete
+                options={editGoalTeam && gameDay.teams?.[editGoalTeam]?.players ? players.filter((p: any) => gameDay.teams[editGoalTeam].players.includes(p.id)) : []}
+                getOptionLabel={option => option?.name || ''}
+                value={editGoalAssister}
+                onChange={(_, v) => setEditGoalAssister(v)}
+                renderInput={params => <TextField {...params} label="מבשל (אופציונלי)" sx={{ fontSize: isMobile ? 18 : undefined }} />}
+                sx={{ mb: 2, fontSize: isMobile ? 18 : undefined }}
+                disabled={!editGoalTeam}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ position: isMobile ? 'sticky' : 'static', bottom: 0, bgcolor: 'background.paper', zIndex: 1, p: isMobile ? 2 : 3 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              disabled={!editGoalScorer || !editGoalTeam}
+              onClick={() => {
+                handleSaveGoal();
+                setEditGoalDialogOpen(false);
+              }}
+              sx={{ fontSize: isMobile ? 18 : undefined, flex: 1 }}
+            >
+              {editGoalIndex === null ? 'הוסף שער' : 'עדכן שער'}
+            </Button>
+            <Button onClick={() => {
+              if (pendingScoreTeam) {
+                // Revert the score increase
+                const scoreKey = pendingScoreTeam === 'A' ? 'scoreA' : 'scoreB';
+                setEditState((prev: any) => ({ ...prev, [scoreKey]: Math.max(0, prev[scoreKey] - 1) }));
+                setPendingScoreTeam(null);
+              }
+              setEditGoalDialogOpen(false);
+            }} sx={{ fontSize: isMobile ? 18 : undefined, flex: 1 }}>
+              ביטול
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
     </Box>
   );
 } 
