@@ -4,21 +4,35 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { collection, query, where, onSnapshot, doc, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { Box, Typography, Button, Table, TableHead, TableRow, TableCell, TableBody, Paper, TableContainer, TextField, MenuItem, CircularProgress, Autocomplete } from '@mui/material';
+import { Box, Typography, Button, Table, TableHead, TableRow, TableCell, TableBody, Paper, TableContainer, TextField, MenuItem, CircularProgress, Autocomplete, FormControlLabel, Switch, Stack } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/contexts/ToastContext';
+import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
+import { usePlayersCache } from '@/hooks/usePlayersCache';
+import { useGameNightsCache } from '@/hooks/useGameNightsCache';
 
 interface Player {
   id: string;
   name: string;
   email?: string;
+  totalGoals?: number;
+  totalAssists?: number;
+  totalGameNights?: number;
+  totalMiniGames?: number;
+  totalWins?: number;
+}
+
+interface GameNight {
+  id: string;
+  participants: string[];
+  date: string;
+  status: number;
 }
 
 export default function RatePlayersPage() {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   const router = useRouter();
   const [task, setTask] = useState<any>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -27,16 +41,101 @@ export default function RatePlayersPage() {
   const [search, setSearch] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const { showToast } = useToast();
+  
+  // Filter states
+  const [showOnlyActivePlayers, setShowOnlyActivePlayers] = useState(false);
+  const [showOnlySubscriptions, setShowOnlySubscriptions] = useState(false);
+  const [showOnlyTeammates, setShowOnlyTeammates] = useState(false);
+  
+  // Use cache hooks instead of direct Firestore calls
+  const { players } = usePlayersCache();
+  const { gameNights } = useGameNightsCache();
+  const { subscriptions: subsByDay } = useSubscriptionsCache();
 
-  // Filtered players by search
+  // Create player subscriptions map
+  const playerSubscriptions = useMemo(() => {
+    const subscriptions: Record<string, string> = {};
+    Object.entries(subsByDay).forEach(([day, players]) => {
+      players.forEach((p: any) => {
+        subscriptions[p.id] = day;
+      });
+    });
+    return subscriptions;
+  }, [subsByDay]);
+
+  // Get players who played with the current user's player
+  const teammates = useMemo(() => {
+    if (!userData?.playerId || !gameNights.length) return new Set<string>();
+    
+    const currentPlayerId = userData.playerId;
+    const teammatesSet = new Set<string>();
+    
+    console.log('Teammates calculation:', {
+      currentPlayerId,
+      gameNightsCount: gameNights.length,
+      gameNightsWithParticipants: gameNights.filter(gn => gn.participants && gn.participants.length > 0).length
+    });
+    
+    // Find all game nights where the current player participated
+    gameNights.forEach(gameNight => {
+      // Check if this game night has participants and the current player is in it
+      if (gameNight.participants && Array.isArray(gameNight.participants) && gameNight.participants.includes(currentPlayerId)) {
+        console.log(`Found game night ${gameNight.id} where current player participated`);
+        // Add all other participants from this game night
+        gameNight.participants.forEach((participantId: string) => {
+          if (participantId !== currentPlayerId) {
+            teammatesSet.add(participantId);
+          }
+        });
+      }
+    });
+    
+    console.log('Final teammates set:', Array.from(teammatesSet));
+    return teammatesSet;
+  }, [userData?.playerId, gameNights]);
+
+  // Simple filtered players without complex caching
   const filteredPlayers = useMemo(() => {
-    if (!search) return players;
-    const q = search.toLowerCase();
-    return players.filter(p =>
-      (p.name && p.name.toLowerCase().includes(q)) ||
-      (p.email && p.email.toLowerCase().includes(q))
-    );
-  }, [players, search]);
+    let filtered = players;
+    
+    // Apply active players filter
+    if (showOnlyActivePlayers) {
+      filtered = filtered.filter(p => 
+        (p.totalGoals && p.totalGoals > 0) ||
+        (p.totalAssists && p.totalAssists > 0) ||
+        (p.totalGameNights && p.totalGameNights > 0) ||
+        (p.totalMiniGames && p.totalMiniGames > 0) ||
+        (p.totalWins && p.totalWins > 0)
+      );
+    }
+    
+    // Apply subscriptions filter
+    if (showOnlySubscriptions) {
+      filtered = filtered.filter(p => playerSubscriptions[p.id]);
+    }
+    
+    // Apply teammates filter
+    if (showOnlyTeammates && userData?.playerId) {
+      console.log('Applying teammates filter:', {
+        teammatesCount: teammates.size,
+        teammates: Array.from(teammates),
+        playersBeforeFilter: filtered.length
+      });
+      filtered = filtered.filter(p => teammates.has(p.id));
+      console.log('Players after teammates filter:', filtered.length);
+    }
+    
+    // Apply search filter
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(p =>
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.email && p.email.toLowerCase().includes(q))
+      );
+    }
+    
+    return filtered;
+  }, [players, showOnlyActivePlayers, showOnlySubscriptions, showOnlyTeammates, search, playerSubscriptions, userData?.playerId, teammates]);
 
   // Fetch pending ranking task for current user
   useEffect(() => {
@@ -59,43 +158,16 @@ export default function RatePlayersPage() {
     return () => unsub();
   }, [user, router]);
 
-  // Fetch all players
-  useEffect(() => {
-    async function fetchPlayers() {
-      const snap = await getDocs(collection(db, "players"));
-      setPlayers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
-    }
-    fetchPlayers();
-  }, []);
-
-  // Load existing ratings from Firestore and localStorage on mount
+  // Load existing ratings from localStorage only (much faster)
   useEffect(() => {
     if (!user) return;
     const key = `playerRatingsDraft_${user.uid}`;
-    let unsub: (() => void) | undefined;
-    (async () => {
-      // Load from Firestore
-      const snap = await getDocs(collection(db, 'players'));
-      const playerIds = snap.docs.map(doc => doc.id);
-      const ratingsFromDb: Record<string, number> = {};
-      await Promise.all(playerIds.map(async (playerId) => {
-        const ratingDoc = await getDocs(collection(db, `playerRatings/${playerId}/ratings`));
-        const userRating = ratingDoc.docs.find(d => d.id === user.uid);
-        if (userRating) {
-          ratingsFromDb[playerId] = userRating.data().rating;
-        }
-      }));
-      // Load from localStorage
-      let ratingsFromCache: Record<string, number> = {};
-      try {
-        const cache = localStorage.getItem(key);
-        if (cache) ratingsFromCache = JSON.parse(cache);
-      } catch {}
-      // Prefer the most recent (localStorage if exists, else Firestore)
-      setRatings(Object.keys(ratingsFromCache).length > 0 ? ratingsFromCache : ratingsFromDb);
-    })();
-    // Save to localStorage on change
-    return () => { if (unsub) unsub(); };
+    try {
+      const cache = localStorage.getItem(key);
+      if (cache) {
+        setRatings(JSON.parse(cache));
+      }
+    } catch {}
   }, [user]);
 
   // Save ratings to localStorage on every change
@@ -185,6 +257,46 @@ export default function RatePlayersPage() {
       <Typography variant="h5" fontWeight={700} align="center" gutterBottom>
         דרג את כל השחקנים (1-9)
       </Typography>
+      
+      {/* Filters Section */}
+      <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+          סינון שחקנים
+        </Typography>
+        <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlyActivePlayers}
+                onChange={(e) => setShowOnlyActivePlayers(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק שחקנים פעילים"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlySubscriptions}
+                onChange={(e) => setShowOnlySubscriptions(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק מנויים"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlyTeammates}
+                onChange={(e) => setShowOnlyTeammates(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק שחקנים שמשחקים איתי"
+          />
+        </Stack>
+      </Box>
+      
       <Box sx={{ mb: 3 }}>
         <Autocomplete
           options={players}
@@ -202,6 +314,14 @@ export default function RatePlayersPage() {
           sx={{ width: 300 }}
         />
       </Box>
+      
+      {/* Players Count Summary */}
+      <Box sx={{ mb: 2, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          מציג {filteredPlayers.length} מתוך {players.length} שחקנים
+        </Typography>
+      </Box>
+      
       <TableContainer component={Paper} sx={{ mb: 3, borderRadius: 3, boxShadow: 2 }}>
         <Table>
           <TableHead>

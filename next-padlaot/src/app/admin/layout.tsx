@@ -9,6 +9,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import GroupIcon from '@mui/icons-material/Group';
 import SubscriptionsIcon from '@mui/icons-material/HowToReg';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import Header from '@/components/Header';
 import { AdminProvider } from '@/contexts/AdminContext';
 
@@ -26,6 +27,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'ניהול שחקנים', href: '/admin/player-manager', icon: <GroupIcon sx={{ mr: 1, color: '#10b981' }} /> },
     ...(userData?.role === 'super-admin' ? [
       { label: 'ניהול משתמשים', href: '/admin/user-manager', icon: <AdminPanelSettingsIcon sx={{ mr: 1, color: '#f43f5e' }} /> },
+      { label: 'איפוס מסד נתונים', href: '/admin/reset-database', icon: <DeleteForeverIcon sx={{ mr: 1, color: '#dc2626' }} /> },
     ] : []),
   ];
   const currentTab = navItems.findIndex((item) => pathname === item.href);

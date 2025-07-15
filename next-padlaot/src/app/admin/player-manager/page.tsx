@@ -78,30 +78,41 @@ export default function PlayerManagerPage() {
     }
   };
 
-  // Batch fetch user emails for all players with userID
+  // Batch fetch user emails for all players with userID - OPTIMIZED
   useEffect(() => {
     if (!players || players.length === 0) return;
+    
+    // Only fetch emails if we don't have them already
+    const playersWithUserIds = players.filter((p: any) => p.userId && !userEmails[p.userId]);
+    if (playersWithUserIds.length === 0) return;
+    
     async function fetchEmails() {
-      const ids = players
+      const ids = playersWithUserIds
         .map((p: any) => p.userId)
         .filter((id: string | undefined) => !!id);
+      
       if (ids.length === 0) return;
-      const entries = await Promise.all(
-        ids.map(async (id: string) => {
-          try {
-            const user = await getUserData(id);
-            console.log('Fetched user for id', id, ':', user);
-            return [id, user?.email || null];
-          } catch (err) {
-            console.error('Error fetching user for id', id, err);
-            return [id, null];
-          }
-        })
-      );
-      setUserEmails(Object.fromEntries(entries));
+      
+      try {
+        const entries = await Promise.all(
+          ids.map(async (id: string) => {
+            try {
+              const user = await getUserData(id);
+              return [id, user?.email || null];
+            } catch (err) {
+              console.error('Error fetching user for id', id, err);
+              return [id, null];
+            }
+          })
+        );
+        setUserEmails(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+      } catch (error) {
+        console.error('Error in batch email fetch:', error);
+      }
     }
+    
     fetchEmails();
-  }, [players]);
+  }, [players, userEmails]);
 
   // Fetch subscriptions for all players
   useEffect(() => {
@@ -275,21 +286,33 @@ export default function PlayerManagerPage() {
     }
     fetchAverages();
   }, [isSuperAdmin]);
-  // Fetch all ratings for all players for super-admin
+  // Fetch all ratings for all players for super-admin - OPTIMIZED
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isSuperAdmin || players.length === 0) return;
+    
+    // Only fetch ratings if we're actually viewing them (e.g., when a specific player is selected)
+    // This reduces the number of simultaneous listeners
     const unsubscribes: (() => void)[] = [];
-    players.forEach(player => {
+    
+    // Limit to first 20 players to prevent too many listeners
+    const playersToMonitor = players.slice(0, 20);
+    
+    playersToMonitor.forEach(player => {
       const qRef = collection(db, `playerRatings/${player.id}/ratings`);
       const unsub = onSnapshot(qRef, (snap) => {
         setPlayerRatings(prev => ({
           ...prev,
           [player.id]: snap.docs.map(d => ({ userId: d.id, rating: d.data().rating ?? 0 }))
         }));
+      }, (error) => {
+        console.error(`Error listening to ratings for player ${player.id}:`, error);
       });
       unsubscribes.push(unsub);
     });
-    return () => { unsubscribes.forEach(unsub => unsub()); };
+    
+    return () => { 
+      unsubscribes.forEach(unsub => unsub()); 
+    };
   }, [players, isSuperAdmin]);
   // Assign ranking task logic
   const handleAssignTask = async () => {
@@ -297,18 +320,30 @@ export default function PlayerManagerPage() {
     setAssigning(true);
     setAssignMessage(null);
     try {
-      await setDoc(doc(db, 'rankingTasks', selectedUser), {
+      // Use a timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Assignment timeout')), 10000)
+      );
+      
+      const assignmentPromise = setDoc(doc(db, 'rankingTasks', selectedUser), {
         userId: selectedUser,
         assignedAt: new Date().toISOString(),
         completed: false,
       });
+      
+      await Promise.race([assignmentPromise, timeoutPromise]);
+      
       setAssignMessage('המשימה הוקצתה בהצלחה!');
       showToast && showToast('המשימה הוקצתה בהצלחה!', 'success');
       setSelectedUser('');
       setAssignDialogOpen(false);
-    } catch (err) {
-      setAssignMessage('שגיאה בהקצאת המשימה');
-      showToast && showToast('שגיאה בהקצאת המשימה', 'error');
+    } catch (err: any) {
+      console.error('Assignment error:', err);
+      const errorMessage = err.message === 'Assignment timeout' 
+        ? 'הקצאת המשימה ארכה זמן רב מדי. אנא נסה שוב.'
+        : 'שגיאה בהקצאת המשימה';
+      setAssignMessage(errorMessage);
+      showToast && showToast(errorMessage, 'error');
     } finally {
       setAssigning(false);
     }

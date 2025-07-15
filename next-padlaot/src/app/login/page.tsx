@@ -119,30 +119,61 @@ export default function LoginPage() {
 
   // Show login button
   return (
-    <Container className="min-h-screen flex items-center justify-center">
-      <div className="w-full max-w-md mx-auto">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <div className="text-center mb-8">
-            <Typography variant="h1" className="mb-2">
+    <Container className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-sm mx-auto">
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="text-center mb-6">
+            <img 
+              src="/logo.jpeg" 
+              alt="פדלאות לוגו" 
+              className="mx-auto mb-4 rounded-lg shadow-md object-cover"
+              style={{ 
+                width: '300px', 
+                height: '300px',
+                objectFit: 'cover'
+              }}
+            />
+            <Typography variant="h1" className="mb-2 text-2xl sm:text-3xl">
               ברוכים הבאים לפדלאות
             </Typography>
-            <Typography variant="base" className="text-neutral-600">
+            <Typography variant="base" className="text-neutral-600 text-sm sm:text-base">
               אנא התחבר כדי להמשיך
             </Typography>
           </div>
 
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className={`
-              w-full flex items-center justify-center gap-3
-              px-6 py-4 rounded-lg
-              bg-primary-600 hover:bg-primary-700
-              text-white font-medium text-lg
-              transition-colors duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-              focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
-            `}
+                      <div className="flex justify-center">
+              <button
+                onClick={handleGoogleLogin}
+                disabled={loading}
+                style={{
+                  background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '16px 32px',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0 10px 25px rgba(139, 92, 246, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '16px',
+                  minWidth: '280px'
+                }}
+            onMouseEnter={(e) => {
+              const target = e.target as HTMLButtonElement;
+              target.style.background = 'linear-gradient(135deg, #7c3aed 0%, #6d28d9 50%, #5b21b6 100%)';
+              target.style.transform = 'scale(1.02)';
+              target.style.boxShadow = '0 15px 35px rgba(139, 92, 246, 0.4)';
+            }}
+            onMouseLeave={(e) => {
+              const target = e.target as HTMLButtonElement;
+              target.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)';
+              target.style.transform = 'scale(1)';
+              target.style.boxShadow = '0 10px 25px rgba(139, 92, 246, 0.3)';
+            }}
           >
             {loading ? (
               <>
@@ -150,16 +181,19 @@ export default function LoginPage() {
                 <span>מתחבר...</span>
               </>
             ) : (
-              <>
-                <img 
-                  src="/google-icon.svg" 
-                  alt="Google" 
-                  className="w-6 h-6"
-                />
-                <span>התחבר עם גוגל</span>
-              </>
-            )}
-          </button>
+                              <>
+                  <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center shadow-sm">
+                    <img 
+                      src="/google-icon.svg" 
+                      alt="Google" 
+                      className="w-4 h-4"
+                    />
+                  </div>
+                  <span>התחבר עם Google</span>
+                </>
+                            )}
+              </button>
+            </div>
         </div>
       </div>
     </Container>

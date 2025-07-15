@@ -8,6 +8,7 @@ import { db } from '@/lib/firebase/config';
 export interface GameNight {
   id: string;
   date: string;
+  participants?: string[];
   miniGames: any[];
   [key: string]: any;
 }
