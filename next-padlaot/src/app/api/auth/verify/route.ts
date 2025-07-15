@@ -15,6 +15,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!auth) {
+      return NextResponse.json(
+        { error: 'Authentication service not available' },
+        { status: 503 }
+      );
+    }
+
     const decodedToken = await auth.verifyIdToken(idToken);
     
     return NextResponse.json({

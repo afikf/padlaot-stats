@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { collection, query, where, onSnapshot, doc, getDocs, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { Box, Typography, Button, Table, TableHead, TableRow, TableCell, TableBody, Paper, TableContainer, TextField, MenuItem, CircularProgress, Autocomplete, FormControlLabel, Switch, Stack } from '@mui/material';
 import { useRouter } from 'next/navigation';
@@ -22,12 +22,7 @@ interface Player {
   totalWins?: number;
 }
 
-interface GameNight {
-  id: string;
-  participants: string[];
-  date: string;
-  status: number;
-}
+
 
 export default function RatePlayersPage() {
   const { user, userData } = useAuth();

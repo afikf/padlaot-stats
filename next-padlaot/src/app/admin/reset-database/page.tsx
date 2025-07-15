@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdmin } from '@/contexts/AdminContext';
-import { collection, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { 
   Box, 
@@ -32,7 +32,6 @@ interface CollectionStats {
 }
 
 export default function ResetDatabasePage() {
-  const { user, userData } = useAuth();
   const { isSuperAdmin } = useAdmin();
   const { showToast } = useToast();
   const router = useRouter();
