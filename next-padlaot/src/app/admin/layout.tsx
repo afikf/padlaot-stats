@@ -1,7 +1,7 @@
 "use client";
-import { AppBar, Toolbar, Typography, Button, Tabs, Tab, Box, Container, Avatar, useMediaQuery, Divider, Fade } from '@mui/material';
+import { Tabs, Tab, Box, Container, useMediaQuery, Fade } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import Link from 'next/link';
+
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';

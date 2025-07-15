@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Box, Container, Tabs, Tab, Switch, FormControlLabel, Paper, Alert, AlertTitle, Button } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import AuthGuard from "@/components/auth/AuthGuard";
+import React, { useEffect, useState } from 'react';
+import { Box, Typography, Tabs, Tab, Container, CircularProgress, Button, Switch, FormControlLabel, Fade } from '@mui/material';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { collection, query, onSnapshot, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import AuthGuard from '@/components/auth/AuthGuard';
 import Header from '@/components/Header';
-import GameNightsAccordion from "@/components/dashboard/GameNightsAccordion";
-import PlayerStatsTable from "@/components/dashboard/PlayerStatsTable";
-import ShowMyStatsSwitch from "@/components/dashboard/ShowMyStatsSwitch";
+import GameNightsAccordion from '@/components/dashboard/GameNightsAccordion';
+import PlayerStatsTable from '@/components/dashboard/PlayerStatsTable';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
-import { Fade, Divider } from '@mui/material';
-import { collection, query, where, onSnapshot } from "firebase/firestore";
-import { db } from '@/lib/firebase/config';
 
 const theme = createTheme({
   direction: "rtl",
@@ -103,7 +101,6 @@ export default function DashboardPage() {
                 onNavButtonClick: () => router.push('/admin'),
               })}
               userEmail={user?.email || ''}
-              userName={userData?.playerName}
               userAvatarUrl={user?.photoURL || ''}
               onLogout={logout}
               userRole={userData?.role}

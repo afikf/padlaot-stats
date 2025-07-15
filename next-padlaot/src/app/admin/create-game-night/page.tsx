@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { Box, Button, Stepper, Step, StepLabel, Paper, Typography, InputAdornment, IconButton, TextField, CircularProgress } from '@mui/material';
 import AdminGuard from '@/components/auth/AdminGuard';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -24,14 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { collection, getDocs as getDocsFirestore } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 
-const steps = [
-  'בחירת תאריך',
-  'בחירת שחקנים',
-  'שיבוץ לקבוצות',
-  'סקירה וסיום',
-];
-
-export default function CreateGameNightPage() {
+function CreateGameNightContent() {
   console.log('CreateGameNightPage rendered');
   const [activeStep, setActiveStep] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -1077,5 +1070,13 @@ export default function CreateGameNightPage() {
         </Dialog>
       </Box>
     </AdminGuard>
+  );
+}
+
+export default function CreateGameNightPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CreateGameNightContent />
+    </Suspense>
   );
 } 
