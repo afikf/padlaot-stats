@@ -234,6 +234,141 @@ export default function RatePlayersContent() {
   if (!task) return <Box sx={{ mt: 6, textAlign: 'center' }}>אין לך משימת דירוג פתוחה.</Box>;
 
   return (
-    // ... your existing JSX ...
+    <Box sx={{ maxWidth: 700, mx: 'auto', py: 4, pb: 10 }}>
+      <Typography variant="h5" fontWeight={700} align="center" gutterBottom>
+        דרג את כל השחקנים (1-9)
+      </Typography>
+      {/* Filters Section */}
+      <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+        <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
+          סינון שחקנים
+        </Typography>
+        <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlyActivePlayers}
+                onChange={(e) => setShowOnlyActivePlayers(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק שחקנים פעילים"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlySubscriptions}
+                onChange={(e) => setShowOnlySubscriptions(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק מנויים"
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showOnlyTeammates}
+                onChange={(e) => setShowOnlyTeammates(e.target.checked)}
+                color="primary"
+              />
+            }
+            label="הצג רק שחקנים שמשחקים איתי"
+          />
+        </Stack>
+      </Box>
+      <Box sx={{ mb: 3 }}>
+        <Autocomplete
+          options={players}
+          getOptionLabel={option => option.name || ''}
+          value={selectedPlayer}
+          onChange={(_, v) => {
+            setSelectedPlayer(v);
+            setSearch(v?.name || '');
+          }}
+          inputValue={search}
+          onInputChange={(_, v) => setSearch(v)}
+          renderInput={params => (
+            <TextField {...params} label="חפש שחקן" variant="outlined" size="small" />
+          )}
+          sx={{ width: 300 }}
+        />
+      </Box>
+      {/* Players Count Summary */}
+      <Box sx={{ mb: 2, textAlign: 'center' }}>
+        <Typography variant="body2" color="text.secondary">
+          מציג {filteredPlayers.length} מתוך {players.length} שחקנים
+        </Typography>
+      </Box>
+      <TableContainer component={Paper} sx={{ mb: 3, borderRadius: 3, boxShadow: 2 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>שחקן</TableCell>
+              <TableCell>דירוג</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredPlayers.map(player => (
+              <TableRow key={player.id}>
+                <TableCell>{player.name || player.email || player.id}</TableCell>
+                <TableCell>
+                  <TextField
+                    select
+                    value={ratings[player.id] || ''}
+                    onChange={e => handleRatingChange(player.id, Number(e.target.value))}
+                    required={false}
+                    disabled={submitting}
+                    sx={{ width: 80 }}
+                  >
+                    <MenuItem value="">בחר</MenuItem>
+                    {[1,2,3,4,5,6,7,8,9].map(n => (
+                      <MenuItem key={n} value={n}>{n}</MenuItem>
+                    ))}
+                  </TextField>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      {/* Sticky Buttons */}
+      <Box
+        sx={{
+          position: 'fixed',
+          left: 0,
+          bottom: 0,
+          width: '100%',
+          bgcolor: '#fff',
+          boxShadow: '0 -4px 24px 0 #7c3aed33',
+          py: 2,
+          px: 2,
+          zIndex: 1200,
+          display: 'flex',
+          justifyContent: 'center',
+          gap: 2,
+        }}
+      >
+        <Button
+          type="button"
+          variant="outlined"
+          color="primary"
+          sx={{ minWidth: 180, fontWeight: 700, fontSize: '1.1rem' }}
+          disabled={submitting || Object.keys(ratings).length === 0}
+          onClick={handleSave}
+        >
+          שמור דירוגים
+        </Button>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          sx={{ minWidth: 220, fontWeight: 700, fontSize: '1.1rem' }}
+          disabled={submitting || Object.keys(ratings).length === 0}
+          onClick={handleSubmit}
+        >
+          {submitting ? "שולח..." : "שלח דירוגים"}
+        </Button>
+      </Box>
+    </Box>
   );
 } 
