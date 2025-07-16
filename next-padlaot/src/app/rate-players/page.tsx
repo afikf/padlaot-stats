@@ -10,6 +10,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
 import { usePlayersCache } from '@/hooks/usePlayersCache';
 import { useGameNightsCache } from '@/hooks/useGameNightsCache';
+import { useSearchParams } from 'next/navigation';
 
 interface Player {
   id: string;
@@ -27,6 +28,8 @@ interface Player {
 export default function RatePlayersPage() {
   const { user, userData } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTaskId = searchParams.get('taskId');
   const [task, setTask] = useState<any>(null);
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -132,26 +135,45 @@ export default function RatePlayersPage() {
     return filtered;
   }, [players, showOnlyActivePlayers, showOnlySubscriptions, showOnlyTeammates, search, playerSubscriptions, userData?.playerId, teammates]);
 
-  // Fetch pending ranking task for current user
+  // Fetch ranking task by taskId from URL if present, otherwise fallback to current logic
   useEffect(() => {
     if (!user) return;
     setLoading(true);
-    const q = query(collection(db, "rankingTasks"), where("userId", "==", user.uid), where("completed", "==", false));
-    const unsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        setTask({ id: snap.docs[0].id, ...snap.docs[0].data() });
-      } else {
-        setTask(null);
-        // Redirect to dashboard if no open assignment
-        router.replace('/dashboard');
-      }
-      setLoading(false);
-    }, (err) => {
-      setError(err.message);
-      setLoading(false);
-    });
-    return () => unsub();
-  }, [user, router]);
+    if (urlTaskId) {
+      // Fetch the specific task by ID
+      const docRef = doc(db, 'rankingTasks', urlTaskId);
+      const unsub = onSnapshot(docRef, (snap) => {
+        if (snap.exists()) {
+          setTask({ id: snap.id, ...snap.data() });
+        } else {
+          setTask(null);
+          setError('משימת דירוג לא נמצאה.');
+        }
+        setLoading(false);
+      }, (err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+      return () => unsub();
+    } else {
+      // Fallback to current logic: fetch open task for user
+      const q = query(collection(db, "rankingTasks"), where("userId", "==", user.uid), where("completed", "==", false));
+      const unsub = onSnapshot(q, (snap) => {
+        if (!snap.empty) {
+          setTask({ id: snap.docs[0].id, ...snap.docs[0].data() });
+        } else {
+          setTask(null);
+          // Redirect to dashboard if no open assignment
+          router.replace('/dashboard');
+        }
+        setLoading(false);
+      }, (err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+      return () => unsub();
+    }
+  }, [user, router, urlTaskId]);
 
   // Load existing ratings from localStorage only (much faster)
   useEffect(() => {

@@ -39,13 +39,20 @@ export default function DashboardPage() {
   const { user, userData, logout } = useAuth();
   const router = useRouter();
   const [hasRankingTask, setHasRankingTask] = useState(false);
+  const [rankingTaskId, setRankingTaskId] = useState<string | null>(null);
 
-  // Check for open ranking assignment
+  // Check for open ranking assignment and get its ID
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "rankingTasks"), where("userId", "==", user.uid), where("completed", "==", false));
     const unsub = onSnapshot(q, (snap) => {
-      setHasRankingTask(!snap.empty);
+      if (!snap.empty) {
+        setHasRankingTask(true);
+        setRankingTaskId(snap.docs[0].id);
+      } else {
+        setHasRankingTask(false);
+        setRankingTaskId(null);
+      }
     });
     return () => unsub();
   }, [user]);
@@ -86,7 +93,13 @@ export default function DashboardPage() {
                 <Button
                   variant="contained"
                   sx={{ ml: 2, background: '#fff', color: '#7c3aed', fontWeight: 900, fontSize: '1.1rem', boxShadow: 2, '&:hover': { background: '#ede9fe' } }}
-                  onClick={() => router.push('/rate-players')}
+                  onClick={() => {
+                    if (rankingTaskId) {
+                      router.push(`/rate-players?taskId=${rankingTaskId}`);
+                    } else {
+                      router.push('/rate-players');
+                    }
+                  }}
                 >
                   עבור לדירוג
                 </Button>

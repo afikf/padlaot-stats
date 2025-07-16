@@ -250,64 +250,64 @@ export default function UserManagerPage() {
           })}
         </Box>
       ) : (
-        <TableContainer component={Paper} sx={{ mt: 4 }}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell align="center">מזהה משתמש</TableCell>
-                <TableCell align="center">אימייל</TableCell>
-                <TableCell align="center">שחקן משויך</TableCell>
-                <TableCell align="center">פעולות</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredUsers.map(user => {
-                const linkedPlayer = user.playerId ? players.find((p: any) => p.id === user.playerId) : null;
-                return (
-                  <TableRow key={user.uid}>
-                    <TableCell
-                      align="center"
-                      sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, textDecoration: 'underline' }}
-                      onClick={() => handleRoleDialog(user)}
+      <TableContainer component={Paper} sx={{ mt: 4 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell align="center">מזהה משתמש</TableCell>
+              <TableCell align="center">אימייל</TableCell>
+              <TableCell align="center">שחקן משויך</TableCell>
+              <TableCell align="center">פעולות</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredUsers.map(user => {
+              const linkedPlayer = user.playerId ? players.find((p: any) => p.id === user.playerId) : null;
+              return (
+                <TableRow key={user.uid}>
+                  <TableCell
+                    align="center"
+                    sx={{ cursor: 'pointer', color: 'primary.main', fontWeight: 700, textDecoration: 'underline' }}
+                    onClick={() => handleRoleDialog(user)}
+                  >
+                    {user.uid}
+                  </TableCell>
+                  <TableCell align="center">{user.email}</TableCell>
+                  <TableCell align="center">
+                    {linkedPlayer ? (
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        {linkedPlayer.name}
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleUnlinkPlayer(user)}
+                          disabled={unlinking}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                    ) : (
+                      <Typography color="text.secondary">—</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => handleRemoveUser(user)}
+                      disabled={isSelf(user) || (user.role === 'super-admin' && superAdminCount <= 1)}
                     >
-                      {user.uid}
-                    </TableCell>
-                    <TableCell align="center">{user.email}</TableCell>
-                    <TableCell align="center">
-                      {linkedPlayer ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                          {linkedPlayer.name}
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleUnlinkPlayer(user)}
-                            disabled={unlinking}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      ) : (
-                        <Typography color="text.secondary">—</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Button
-                        variant="outlined"
-                        color="error"
-                        size="small"
-                        startIcon={<DeleteIcon />}
-                        onClick={() => handleRemoveUser(user)}
-                        disabled={isSelf(user) || (user.role === 'super-admin' && superAdminCount <= 1)}
-                      >
-                        הסר
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                      הסר
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
       )}
 
       {/* Remove User Confirmation Dialog */}
