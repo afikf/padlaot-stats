@@ -13,6 +13,11 @@ import GameNightsAccordion from '@/components/dashboard/GameNightsAccordion';
 import PlayerStatsTable from '@/components/dashboard/PlayerStatsTable';
 import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import { useTournamentsCache } from '@/hooks/useTournamentsCache';
+import LiveEventAccordion from '@/components/ui/layout/LiveEventAccordion';
+import { usePlayersCache } from '@/hooks/usePlayersCache';
+import GameNightSummary from '@/components/dashboard/GameNightSummary';
+import { Stack, Divider } from '@mui/material';
 
 const theme = createTheme({
   direction: "rtl",
@@ -40,6 +45,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const [hasRankingTask, setHasRankingTask] = useState(false);
   const [rankingTaskId, setRankingTaskId] = useState<string | null>(null);
+  const { tournaments, loading: loadingTournaments, error: errorTournaments } = useTournamentsCache();
+  const { players, loading: loadingPlayers, error: errorPlayers } = usePlayersCache();
 
   // Check for open ranking assignment and get its ID
   useEffect(() => {
@@ -56,6 +63,9 @@ export default function DashboardPage() {
     });
     return () => unsub();
   }, [user]);
+
+  // Find the live tournament (status === 2)
+  const liveTournament = tournaments?.find(t => t.status === 2);
 
   console.log('user:', user);
 
@@ -180,6 +190,113 @@ export default function DashboardPage() {
                 labelPlacement="start"
               />
             </Box>
+            {/* Live Tournament Card (for all users) */}
+            {liveTournament && players && (
+              <LiveEventAccordion
+                date={liveTournament.date}
+                badgeLabel="טורניר חי"
+                badgeColor="#a21caf"
+                buttonLabel="נהל טורניר חי"
+                onButtonClick={() => router.push(`/tournaments/${liveTournament.id}/live`)}
+                borderColor="#a21caf"
+                summaryBackground="linear-gradient(90deg, #a21caf 0%, #7c3aed 100%)"
+                tabLabels={["תוצאות", "סיכום"]}
+                renderTabContent={(tabIdx) => {
+                  if (tabIdx === 0) {
+                    return Array.isArray(liveTournament.miniGames) && liveTournament.miniGames.length > 0 ? (
+                      liveTournament.miniGames.map((mg: any, idx: number) => {
+                        const teamAKey = mg.teamA || 'A';
+                        const teamBKey = mg.teamB || 'B';
+                        const goalsArr = mg.goals || mg.liveGoals || [];
+                        // Team/captain logic
+                        const teamA = liveTournament.teams?.[teamAKey];
+                        const teamB = liveTournament.teams?.[teamBKey];
+                        const captainAId = teamA?.players?.[0];
+                        const captainBId = teamB?.players?.[0];
+                        const captainAName = players.find((p: any) => p.id === captainAId)?.name || '';
+                        const captainBName = players.find((p: any) => p.id === captainBId)?.name || '';
+                        const teamADisplay = `קבוצת ${captainAName}`;
+                        const teamBDisplay = `קבוצת ${captainBName}`;
+                        const scoreA = goalsArr.filter((g: any) => g.team === teamAKey).length;
+                        const scoreB = goalsArr.filter((g: any) => g.team === teamBKey).length;
+                        return (
+                          <Box key={mg.id || idx} sx={{ mb: 3 }}>
+                            <Stack direction="row" spacing={2} alignItems="flex-start" sx={{ mb: 1, justifyContent: 'center' }}>
+                              {/* Team A */}
+                              <Box sx={{ minWidth: 160, textAlign: 'center' }}>
+                                <Typography fontWeight={700} color="primary">
+                                  {captainAName}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mb: 0.5 }}>
+                                  {teamADisplay}
+                                </Typography>
+                                <Typography variant="h5" fontWeight={900}>
+                                  {scoreA}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 1 }}>
+                                  {goalsArr.filter((g: any) => g.team === teamAKey).map((goal: any, i: number) => (
+                                    <Typography key={goal.id || i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'center' }}>
+                                      {players.find((p: any) => p.id === goal.scorerId)?.name || goal.scorerId}
+                                      {goal.assistId ? (
+                                        <>
+                                          {' '}(<span style={{ color: '#a21caf' }}>{players.find((p: any) => p.id === goal.assistId)?.name || goal.assistId}</span>)
+                                        </>
+                                      ) : null}
+                                    </Typography>
+                                  ))}
+                                </Box>
+                              </Box>
+                              {/* Score separator */}
+                              <Typography variant="h5" fontWeight={900} sx={{ mx: 2, alignSelf: 'center' }}>
+                                :
+                              </Typography>
+                              {/* Team B */}
+                              <Box sx={{ minWidth: 160, textAlign: 'center' }}>
+                                <Typography fontWeight={700} color="primary">
+                                  {captainBName}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mb: 0.5 }}>
+                                  {teamBDisplay}
+                                </Typography>
+                                <Typography variant="h5" fontWeight={900}>
+                                  {scoreB}
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 1 }}>
+                                  {goalsArr.filter((g: any) => g.team === teamBKey).map((goal: any, i: number) => (
+                                    <Typography key={goal.id || i} variant="body2" sx={{ color: 'text.secondary', fontSize: '0.95rem', textAlign: 'center' }}>
+                                      {players.find((p: any) => p.id === goal.scorerId)?.name || goal.scorerId}
+                                      {goal.assistId ? (
+                                        <>
+                                          {' '}(<span style={{ color: '#a21caf' }}>{players.find((p: any) => p.id === goal.assistId)?.name || goal.assistId}</span>)
+                                        </>
+                                      ) : null}
+                                    </Typography>
+                                  ))}
+                                </Box>
+                              </Box>
+                            </Stack>
+                            {/* Duration display */}
+                            {mg.status === 'complete' && mg.startTime && mg.endTime && (
+                              <Typography sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '1.1rem', textAlign: 'center', mt: 1 }}>
+                                משך: {/* You can use a shared formatDuration util here */}
+                              </Typography>
+                            )}
+                            {idx < liveTournament.miniGames.length - 1 && <Divider sx={{ my: 2 }} />}
+                          </Box>
+                        );
+                      })
+                    ) : (
+                      <Typography color="text.secondary">לא נמצאו מיני-משחקים לטורניר זה</Typography>
+                    );
+                  }
+                  // Tab 1: summary (reuse GameNightSummary for now, or create TournamentSummary)
+                  if (tabIdx === 1) {
+                    return <GameNightSummary night={liveTournament} players={players} />;
+                  }
+                  return null;
+                }}
+              />
+            )}
             {/* Tab Panels */}
             <Fade in timeout={500}>
               <Box>

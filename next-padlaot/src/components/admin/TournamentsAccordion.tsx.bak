@@ -1,0 +1,64 @@
+import React from 'react';
+import {
+  Box, Typography, Accordion, AccordionSummary, AccordionDetails, Chip, Button
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { TOURNAMENT_STATUS_MAP } from '@/types/tournament';
+import { useRouter } from 'next/navigation';
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('he-IL', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+export default function TournamentsAccordion({ tournaments }: { tournaments: any[] }) {
+  const router = useRouter();
+  if (!tournaments || tournaments.length === 0) {
+    return (
+      <Box sx={{ textAlign: 'center', py: 6 }}>
+        <Typography color="text.secondary">לא נמצאו טורנירים</Typography>
+      </Box>
+    );
+  }
+  return (
+    <Box>
+      {tournaments.map((tournament) => (
+        <Accordion key={tournament.id} sx={{ mb: 2, borderRadius: 2 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+              <Typography fontWeight={600}>{formatDate(tournament.date)}</Typography>
+              <Chip 
+                label={TOURNAMENT_STATUS_MAP[tournament.status] || tournament.status} 
+                color="info" 
+                size="small" 
+                variant="outlined"
+              />
+              <Chip 
+                label={`מגרשים: ${tournament.settings?.numberOfPitches ?? '-'}`}
+                color="default"
+                size="small"
+                variant="outlined"
+              />
+              <Box sx={{ flexGrow: 1 }} />
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                sx={{ fontWeight: 700, ml: 1 }}
+                onClick={e => { e.stopPropagation(); router.push(`/tournaments/${tournament.id}/live`); }}
+              >
+                מעבר לטורניר
+              </Button>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            {/* Optionally add more tournament details here */}
+            <Typography variant="body2" color="text.secondary">
+              מספר קבוצות: {tournament.settings?.numberOfTeams ?? '-'} | שחקנים בקבוצה: {tournament.settings?.playersPerTeam ?? '-'}
+            </Typography>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Box>
+  );
+} 
