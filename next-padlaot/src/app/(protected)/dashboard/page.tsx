@@ -18,6 +18,7 @@ import LiveEventAccordion from '@/components/ui/layout/LiveEventAccordion';
 import { usePlayersCache } from '@/hooks/usePlayersCache';
 import GameNightSummary from '@/components/dashboard/GameNightSummary';
 import { Stack, Divider } from '@mui/material';
+import TournamentsAccordion from '@/components/dashboard/TournamentsAccordion';
 
 const theme = createTheme({
   direction: "rtl",
@@ -304,6 +305,16 @@ export default function DashboardPage() {
                 {tab === 1 && <PlayerStatsTable showMyStatsOnly={showMyStatsOnly} />}
               </Box>
             </Fade>
+            
+            {/* Tournaments Section */}
+            {tournaments && tournaments.length > 0 && (
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+                  טורנירים
+                </Typography>
+                <TournamentsAccordion tournaments={tournaments} />
+              </Box>
+            )}
           </Container>
         </Box>
       </ThemeProvider>

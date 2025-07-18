@@ -320,6 +320,7 @@ export default function AdminPage() {
               onEdit={handleEditTournament}
               onDelete={handleDeleteTournament}
               onMakeLive={handleMakeLiveTournament}
+              players={players}
             />
             {/* Completed Games Button */}
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
