@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { Tournament, TournamentTeam, TournamentMiniGame, TOURNAMENT_STATUS_MAP } from '@/types/tournament';
@@ -18,6 +18,7 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import TournamentTabs from '@/components/admin/TournamentTabs';
 import KnockoutBracket from '@/components/admin/KnockoutBracket';
+import { useAuth } from '@/contexts/AuthContext';
 
 function getPlayerName(players: any[], id: string) {
   const player = players.find((p) => p.id === id);
@@ -30,6 +31,7 @@ export default function LiveTournamentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { players, loading: loadingPlayers } = usePlayerStatsCache();
+  const { user } = useAuth();
 
   // Move theme and isMobile hooks to the top
   const theme = useTheme();
@@ -100,26 +102,24 @@ export default function LiveTournamentPage() {
   // Check if tournament is completed (read-only mode)
   const isTournamentCompleted = tournament?.status === 3; // 3 = completed
   console.log('=== All mini-games:', miniGames.map(m => ({ id: m.id, status: m.status, knockoutMatchId: m.knockoutMatchId })));
-  // Add a local state for the timer
-  const [liveTimers, setLiveTimers] = useState<Record<string, number>>({});
+  // Simple timer tick state to force re-renders
+  const [timerTick, setTimerTick] = useState(0);
+  
   useEffect(() => {
-    const intervals: Record<string, NodeJS.Timeout> = {};
-    miniGames.forEach((mini: any) => {
-      if (mini.status === 'live' && mini.startTime) {
-        if (!intervals[mini.id]) {
-          intervals[mini.id] = setInterval(() => {
-            setLiveTimers(prev => ({ ...prev, [mini.id]: Date.now() - mini.startTime }));
-          }, 1000);
-        }
-      } else {
-        if (intervals[mini.id]) {
-          clearInterval(intervals[mini.id]);
-        }
-      }
-    });
-    return () => {
-      Object.values(intervals).forEach(clearInterval);
-    };
+    console.log('Timer useEffect triggered, miniGames:', miniGames.map(m => ({ id: m.id, status: m.status, startTime: m.startTime })));
+    
+    // Set up a single interval for all live games
+    const liveGames = miniGames.filter((mini: any) => mini.status === 'live' && mini.startTime);
+    
+    if (liveGames.length > 0) {
+      const interval = setInterval(() => {
+        setTimerTick(prev => prev + 1);
+      }, 1000);
+      
+      return () => {
+        clearInterval(interval);
+      };
+    }
   }, [miniGames]);
 
   useEffect(() => {
@@ -197,10 +197,24 @@ export default function LiveTournamentPage() {
   function isPitchBusy(pitchNum: number) {
     return miniGames.some(mg => (mg.status === 'pending' || mg.status === 'live') && mg.pitchNumber === pitchNum);
   }
+  
+  // Get creator information for a pitch
+  function getPitchCreatorInfo(pitchNum: number) {
+    const activeGame = miniGames.find(mg => (mg.status === 'pending' || mg.status === 'live') && mg.pitchNumber === pitchNum);
+    if (!activeGame || !activeGame.createdBy) return null;
+    
+    // For now, return the user ID - in a real app you'd look up the user name
+    return activeGame.createdBy;
+  }
+  
+  // Check if user can manage a mini-game (only the creator can manage)
+  function canManageMiniGame(miniGame: any) {
+    return miniGame.createdBy === user?.uid;
+  }
 
   // Restore handleCreateMiniGame and handleAddGoal
   async function handleCreateMiniGame() {
-    if (!tournament || !tournament.id || !team1 || !team2 || team1 === team2 || !pitch) return;
+    if (!tournament || !tournament.id || !team1 || !team2 || team1 === team2 || !pitch || !user?.uid) return;
     setCreatingMiniGame(true);
     const newMiniGame: TournamentMiniGame = {
       id: `mini-${Date.now()}`,
@@ -213,6 +227,7 @@ export default function LiveTournamentPage() {
       pitchNumber: Number(pitch),
       startTime: null,
       endTime: null,
+      createdBy: user.uid,
       group: selectedGroup || undefined,
       isGroupGame: !!selectedGroup,
     };
@@ -287,8 +302,16 @@ export default function LiveTournamentPage() {
     const data = snap.data();
     const miniGames = Array.isArray(data.miniGames) ? data.miniGames : [];
     const now = Date.now();
+    
+    // Find the mini-game to start
+    const miniGame = miniGames.find((g: any) => g.id === miniId);
+    if (!miniGame) return;
+    
+    // Only update startTime if it's not already set
+    const startTime = miniGame.startTime || now;
+    
     const updatedMiniGames = miniGames.map((g: any) =>
-      g.id === miniId ? { ...g, status: 'live', startTime: now } : g
+      g.id === miniId ? { ...g, status: 'live', startTime: startTime } : g
     );
     await updateDoc(ref, { miniGames: updatedMiniGames });
     const snap2 = await getDoc(ref);
@@ -644,9 +667,11 @@ export default function LiveTournamentPage() {
     }
   }
 
-  // Find the most recent mini game that is pending or live
-  const liveMini = Array.isArray(miniGames)
-    ? [...miniGames].reverse().find((g: any) => g.status === 'pending' || g.status === 'live')
+  // Find the user's own mini game that is pending or live (user-specific sticky bar)
+  const liveMini = Array.isArray(miniGames) && user?.uid
+    ? [...miniGames].reverse().find((g: any) => 
+        (g.status === 'pending' || g.status === 'live') && g.createdBy === user.uid
+      )
     : null;
 
   // Calculate if all pitches are occupied
@@ -658,6 +683,29 @@ export default function LiveTournamentPage() {
     const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
     const s = (totalSeconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
+  }
+
+  // Helper function to calculate elapsed time from startTime
+  function calculateElapsedTime(startTime: any): number {
+    if (!startTime) return 0;
+    
+    // Direct calculation from the database startTime
+    const startTimeNum = typeof startTime === 'number' ? startTime : new Date(startTime).getTime();
+    const elapsedTime = Date.now() - startTimeNum;
+    
+    // Ensure elapsed time is never negative (in case of clock drift)
+    const safeElapsedTime = Math.max(0, elapsedTime);
+    
+    console.log('calculateElapsedTime:', {
+      startTime,
+      startTimeType: typeof startTime,
+      startTimeNum,
+      currentTime: Date.now(),
+      elapsedTime: safeElapsedTime,
+      formatted: formatMMSS(safeElapsedTime)
+    });
+    
+    return safeElapsedTime;
   }
 
   // --- UI ---
@@ -1033,8 +1081,8 @@ export default function LiveTournamentPage() {
                   סטטוס: {getStatusLabel(liveMini.status)}
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
-                  {/* Only show edit/delete when not live and tournament is not completed */}
-                  {!isTournamentCompleted && (
+                  {/* Only show edit/delete when not live, tournament is not completed, and user is the creator */}
+                  {!isTournamentCompleted && canManageMiniGame(liveMini) && (
                     <>
                       <IconButton
                         color="primary"
@@ -1061,7 +1109,7 @@ export default function LiveTournamentPage() {
               </Box>
               {/* Timer */}
               <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
-                {(liveMini.status === 'live' || liveMini.status === 'pending') && (
+                {(liveMini.status === 'live' || liveMini.status === 'pending') && canManageMiniGame(liveMini) && (
                   <TournamentGameTimer
                     miniGame={liveMini}
                     tournamentId={tournament.id}
@@ -1073,7 +1121,13 @@ export default function LiveTournamentPage() {
           </Box>
         </Box>
       )}
-      <Box sx={{ maxWidth: 900, mx: 'auto', py: 4, position: 'relative' }}>
+      <Box sx={{ 
+        maxWidth: 900, 
+        mx: 'auto', 
+        py: 4, 
+        pb: isMobile ? 28 : 4, // Add extra bottom padding on mobile for sticky bar
+        position: 'relative' 
+      }}>
         <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
           ניהול טורניר חי
         </Typography>
@@ -1175,7 +1229,7 @@ export default function LiveTournamentPage() {
                     <Box sx={{
                       position: 'absolute',
                       top: 8,
-                      right: 8,
+                      right: mini.createdBy ? 120 : 8, // Move right if any creator badge is present (yours or others)
                       bgcolor: '#1976d2',
                       color: 'white',
                       px: 1.5,
@@ -1188,12 +1242,31 @@ export default function LiveTournamentPage() {
                       בית {mini.group}
                     </Box>
                   )}
+                  {/* Creator Badge */}
+                  {mini.createdBy && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      bgcolor: mini.createdBy === user?.uid ? '#4caf50' : '#ff9800',
+                      color: 'white',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      zIndex: 10,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}>
+                      {mini.createdBy === user?.uid ? 'שלך' : 'נוצר על ידי אחר'}
+                    </Box>
+                  )}
                   <Box sx={{ 
                     display: 'flex', 
                     flexDirection: { xs: 'column', sm: 'row' }, 
                     justifyContent: 'space-between', 
                     alignItems: { xs: 'stretch', sm: 'flex-start' },
-                    pt: (mini.knockoutMatchId || mini.group) ? 3 : 0 // Add top padding when badge is present
+                    pt: mini.createdBy ? 4 : (mini.knockoutMatchId || mini.group ? 3 : 0) // Add more top padding when creator badge is present
                   }}>
                     {/* Left side: Team A */}
                     <Box sx={{ flex: 'none', alignItems: 'flex-end', textAlign: 'right', pr: 0, display: 'flex', flexDirection: 'column' }}>
@@ -1247,8 +1320,8 @@ export default function LiveTournamentPage() {
                         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>מגרש: {mini.pitchNumber}</Typography>
                       )}
                       <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mt: 1 }}>
-                        {/* Only show edit/delete when not live and tournament is not completed */}
-                        {!isTournamentCompleted && (
+                        {/* Only show edit/delete when not live, tournament is not completed, and user is the creator */}
+                        {!isTournamentCompleted && canManageMiniGame(mini) && (
                           <>
                             <IconButton
                               color="primary"
@@ -1279,15 +1352,15 @@ export default function LiveTournamentPage() {
                     {/* Timer display only */}
                     {mini.status === 'live' && mini.startTime && (
                       <Typography variant="h2" fontWeight={900} color="primary" sx={{ mb: 2, fontFamily: 'monospace' }}>
-                        {formatMMSS(liveTimers[mini.id] ?? Date.now() - mini.startTime)}
+                        {formatMMSS(calculateElapsedTime(mini.startTime))}
                       </Typography>
                     )}
-                    {mini.status === 'pending' && (
+                    {mini.status === 'pending' && canManageMiniGame(mini) && (
                       <Button data-testid="list-start-game" variant="contained" color="success" sx={{ mt: 2 }} onClick={() => handleStartMiniGame(mini.id)}>
                         התחל משחק (B)
                       </Button>
                     )}
-                    {mini.status === 'live' && (
+                    {mini.status === 'live' && canManageMiniGame(mini) && (
                       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mt: 2 }}>
                         <Button variant="contained" color="secondary" onClick={() => { 
                           setGoalDialogOpen(true); 
@@ -1367,9 +1440,18 @@ export default function LiveTournamentPage() {
                 <InputLabel>מגרש</InputLabel>
                 <Select value={pitch} label="מגרש" onChange={e => setPitch(e.target.value)}>
                   <MenuItem value="" disabled>בחר מגרש</MenuItem>
-                  {pitchOptions.filter(p => !isPitchBusy(p)).map(p => (
-                    <MenuItem key={p} value={p}>{`מגרש ${p}`}</MenuItem>
-                  ))}
+                  {pitchOptions.map(p => {
+                    const isBusy = isPitchBusy(p);
+                    const creatorInfo = getPitchCreatorInfo(p);
+                    const label = isBusy 
+                      ? `מגרש ${p} - תפוס על ידי ${creatorInfo === user?.uid ? 'אתה' : 'משתמש אחר'}`
+                      : `מגרש ${p}`;
+                    return (
+                      <MenuItem key={p} value={p} disabled={isBusy}>
+                        {label}
+                      </MenuItem>
+                    );
+                  })}
                 </Select>
               </FormControl>
             </Box>
@@ -1409,7 +1491,7 @@ export default function LiveTournamentPage() {
   }
 
   async function handleCreateKnockoutMiniGameSubmit() {
-    if (!tournament?.id || !knockoutMatchId || !knockoutTeamA || !knockoutTeamB || !knockoutPitch) return;
+    if (!tournament?.id || !knockoutMatchId || !knockoutTeamA || !knockoutTeamB || !knockoutPitch || !user?.uid) return;
     
     setCreatingKnockoutMiniGame(true);
     const newMiniGame: TournamentMiniGame = {
@@ -1423,6 +1505,7 @@ export default function LiveTournamentPage() {
       pitchNumber: Number(knockoutPitch),
       startTime: null,
       endTime: null,
+      createdBy: user.uid,
       knockoutMatchId: knockoutMatchId,
       isGroupGame: false,
     };
@@ -1737,8 +1820,8 @@ export default function LiveTournamentPage() {
                         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>מגרש: {mini.pitchNumber}</Typography>
                       )}
                       <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1, mt: 1 }}>
-                        {/* Only show edit/delete when not live and tournament is not completed */}
-                        {!isTournamentCompleted && (
+                        {/* Only show edit/delete when not live, tournament is not completed, and user is the creator */}
+                        {!isTournamentCompleted && canManageMiniGame(mini) && (
                           <>
                             <IconButton
                               color="primary"
@@ -1769,15 +1852,15 @@ export default function LiveTournamentPage() {
                     {/* Timer display only */}
                     {mini.status === 'live' && mini.startTime && (
                       <Typography variant="h2" fontWeight={900} color="primary" sx={{ mb: 2, fontFamily: 'monospace' }}>
-                        {formatMMSS(liveTimers[mini.id] ?? Date.now() - mini.startTime)}
+                        {formatMMSS(calculateElapsedTime(mini.startTime))}
                       </Typography>
                     )}
-                    {mini.status === 'pending' && (
+                    {mini.status === 'pending' && canManageMiniGame(mini) && (
                       <Button data-testid="list-start-game" variant="contained" color="success" sx={{ mt: 2 }} onClick={() => handleStartMiniGame(mini.id)}>
                         התחל משחק (B)
                       </Button>
                     )}
-                    {mini.status === 'live' && (
+                    {mini.status === 'live' && canManageMiniGame(mini) && (
                       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mt: 2 }}>
                         <Button variant="contained" color="secondary" onClick={() => { 
                           setGoalDialogOpen(true); 
@@ -1815,9 +1898,18 @@ export default function LiveTournamentPage() {
               <InputLabel>מגרש</InputLabel>
               <Select value={knockoutPitch} label="מגרש" onChange={e => setKnockoutPitch(e.target.value)}>
                 <MenuItem value="" disabled>בחר מגרש</MenuItem>
-                {pitchOptions.filter(p => !isPitchBusy(p)).map(p => (
-                  <MenuItem key={p} value={p}>{`מגרש ${p}`}</MenuItem>
-                ))}
+                {pitchOptions.map(p => {
+                  const isBusy = isPitchBusy(p);
+                  const creatorInfo = getPitchCreatorInfo(p);
+                  const label = isBusy 
+                    ? `מגרש ${p} - תפוס על ידי ${creatorInfo === user?.uid ? 'אתה' : 'משתמש אחר'}`
+                    : `מגרש ${p}`;
+                  return (
+                    <MenuItem key={p} value={p} disabled={isBusy}>
+                      {label}
+                    </MenuItem>
+                  );
+                })}
               </Select>
             </FormControl>
           </Box>

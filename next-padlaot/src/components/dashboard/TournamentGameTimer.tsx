@@ -21,77 +21,88 @@ async function updateMiniGameInFirestore(tournamentId: string, miniGameId: strin
 }
 
 export default function TournamentGameTimer({ miniGame, tournamentId, onAddGoal }: { miniGame: any, tournamentId: string, onAddGoal?: () => void }) {
-  const [time, setTime] = useState(0);
   const [isActive, setIsActive] = useState(miniGame.status === 'live');
   const [isPaused, setIsPaused] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Calculate elapsed time directly from database startTime
+  function calculateElapsedTime(): number {
+    if (!miniGame.startTime) return 0;
+    
+    const start = new Date(miniGame.startTime).getTime();
+    const end = miniGame.endTime ? new Date(miniGame.endTime).getTime() : Date.now();
+    return Math.max(0, end - start);
+  }
+
+  // Force re-render every second when active
+  const [, forceUpdate] = useState(0);
+
   useEffect(() => {
-    if (miniGame.startTime) {
-      const start = new Date(miniGame.startTime).getTime();
-      const end = miniGame.endTime ? new Date(miniGame.endTime).getTime() : Date.now();
-      setTime(end - start);
-      setStartTime(start);
-      setPausedAt(null);
-    } else {
-      setTime(0);
-      setStartTime(null);
-      setPausedAt(null);
-    }
     setIsActive(miniGame.status === 'live');
     setIsPaused(false);
-  }, [miniGame.startTime, miniGame.endTime, miniGame.status]);
+  }, [miniGame.status]);
 
   useEffect(() => {
     if (isActive && !isPaused && miniGame.status !== 'complete') {
-      if (!startTime) setStartTime(Date.now() - time);
       intervalRef.current = setInterval(() => {
-        setTime(Date.now() - (startTime ?? Date.now()));
+        forceUpdate(Date.now());
       }, 1000);
     } else if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
+    
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
-  }, [isActive, isPaused, miniGame.status, startTime]);
+  }, [isActive, isPaused, miniGame.status]);
 
   async function handleStart() {
+    // Only set startTime if it doesn't already exist
+    if (!miniGame.startTime) {
+      await updateMiniGameInFirestore(tournamentId, miniGame.id, { 
+        status: 'live', 
+        startTime: new Date().toISOString(), 
+        endTime: null 
+      });
+    } else {
+      // If startTime already exists, just update status to live
+      await updateMiniGameInFirestore(tournamentId, miniGame.id, { 
+        status: 'live', 
+        endTime: null 
+      });
+    }
     setIsActive(true);
     setIsPaused(false);
-    setStartTime(Date.now());
-    setTime(0);
-    await updateMiniGameInFirestore(tournamentId, miniGame.id, { status: 'live', startTime: Date.now(), endTime: null });
   }
 
   async function handlePause() {
     setIsPaused(true);
-    setPausedAt(Date.now());
   }
 
   async function handleResume() {
     setIsPaused(false);
-    if (pausedAt && startTime) {
-      setStartTime(startTime + (Date.now() - pausedAt));
-      setPausedAt(null);
-    }
   }
 
   async function handleFinish() {
     setIsActive(false);
     setIsPaused(false);
     const now = new Date().toISOString();
-    await updateMiniGameInFirestore(tournamentId, miniGame.id, { status: 'complete', endTime: now });
+    await updateMiniGameInFirestore(tournamentId, miniGame.id, { 
+      status: 'complete', 
+      endTime: now 
+    });
   }
 
   if (miniGame.status === 'complete') return null;
 
+  const elapsedTime = calculateElapsedTime();
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', my: 2 }}>
       <Typography variant="h2" fontWeight={900} color="primary" sx={{ mb: 2, fontFamily: 'monospace' }}>
-        {formatDurationMs(time)}
+        {formatDurationMs(elapsedTime)}
       </Typography>
       <Box sx={{ display: 'flex', gap: 2 }}>
         {/* Start Game button for pending mini-games */}

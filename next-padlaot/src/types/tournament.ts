@@ -70,6 +70,7 @@ export interface TournamentMiniGame {
   pitchNumber: number;
   startTime: number | null; // timestamp (ms)
   endTime: number | null; // timestamp (ms)
+  createdBy: string; // user ID who created this mini-game
   // Group stage specific
   group?: string; // group this game belongs to
   isGroupGame?: boolean;

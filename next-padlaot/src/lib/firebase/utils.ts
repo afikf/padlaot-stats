@@ -496,6 +496,7 @@ export async function createTournamentMiniGame(
   teamA: string,
   teamB: string,
   pitchNumber: number,
+  createdBy: string,
   group?: string,
   knockoutMatchId?: string,
   knockoutRound?: number
@@ -511,6 +512,7 @@ export async function createTournamentMiniGame(
     pitchNumber,
     startTime: null,
     endTime: null,
+    createdBy,
     group,
     isGroupGame: !!group,
     knockoutMatchId,
