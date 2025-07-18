@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
 import { collection, addDoc, serverTimestamp, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
@@ -7,6 +7,7 @@ import { Tournament, TournamentTeam, TournamentMiniGame, TournamentSettings } fr
 import { useRef, useState as useReactState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import GroupStageConfig from '@/components/admin/GroupStageConfig';
+import { Box, CircularProgress } from '@mui/material';
 
 interface Step1Form {
   date: string;
@@ -30,7 +31,7 @@ function getTeamKeys(n: number) {
   return Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i));
 }
 
-export default function CreateTournamentPage() {
+function CreateTournamentContent() {
   const [step, setStep] = useState(0);
   const [step1, setStep1] = useState<Step1Form>(initialStep1);
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
@@ -940,5 +941,13 @@ export default function CreateTournamentPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function CreateTournamentPage() {
+  return (
+    <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}><CircularProgress /></Box>}>
+      <CreateTournamentContent />
+    </Suspense>
   );
 } 
