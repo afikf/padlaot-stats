@@ -545,8 +545,8 @@ export default function PlayerManagerPage() {
       {/* Tab content - only one parent element */}
       {activeTab === 'players' ? (
         <>
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
               <Paper
                 sx={{
                   p: 2,
@@ -560,49 +560,49 @@ export default function PlayerManagerPage() {
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
-                  <SubscriptionsIcon color={showOnlySubscriptions ? 'primary' : 'disabled'} />
-                  <Switch
-                    checked={showOnlySubscriptions}
-                    onChange={e => setShowOnlySubscriptions(e.target.checked)}
-                    color="primary"
-                    inputProps={{ 'aria-label': 'הצג רק מנויים' }}
-                  />
-                  <Typography variant="body2">הצג רק מנויים</Typography>
-                </Box>
+              <SubscriptionsIcon color={showOnlySubscriptions ? 'primary' : 'disabled'} />
+              <Switch
+                checked={showOnlySubscriptions}
+                onChange={e => setShowOnlySubscriptions(e.target.checked)}
+                color="primary"
+                inputProps={{ 'aria-label': 'הצג רק מנויים' }}
+              />
+              <Typography variant="body2">הצג רק מנויים</Typography>
+            </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
-                  <PersonIcon color={showOnlyLinkedUsers ? 'primary' : 'disabled'} />
-                  <Switch
-                    checked={showOnlyLinkedUsers}
-                    onChange={e => setShowOnlyLinkedUsers(e.target.checked)}
-                    color="primary"
-                    inputProps={{ 'aria-label': 'הצג רק שחקנים עם משתמש מקושר' }}
-                  />
-                  <Typography variant="body2">הצג רק שחקנים עם משתמש מקושר</Typography>
-                </Box>
+              <PersonIcon color={showOnlyLinkedUsers ? 'primary' : 'disabled'} />
+              <Switch
+                checked={showOnlyLinkedUsers}
+                onChange={e => setShowOnlyLinkedUsers(e.target.checked)}
+                color="primary"
+                inputProps={{ 'aria-label': 'הצג רק שחקנים עם משתמש מקושר' }}
+              />
+              <Typography variant="body2">הצג רק שחקנים עם משתמש מקושר</Typography>
+            </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: isMobile ? '100%' : 'auto' }}>
-                  <StarIcon color={showOnlyActivePlayers ? 'primary' : 'disabled'} />
-                  <Switch
-                    checked={showOnlyActivePlayers}
-                    onChange={e => setShowOnlyActivePlayers(e.target.checked)}
-                    color="primary"
-                    inputProps={{ 'aria-label': 'הצג שחקנים פעילים' }}
-                  />
-                  <Typography variant="body2">הצג שחקנים פעילים</Typography>
-                </Box>
+              <StarIcon color={showOnlyActivePlayers ? 'primary' : 'disabled'} />
+              <Switch
+                checked={showOnlyActivePlayers}
+                onChange={e => setShowOnlyActivePlayers(e.target.checked)}
+                color="primary"
+                inputProps={{ 'aria-label': 'הצג שחקנים פעילים' }}
+              />
+              <Typography variant="body2">הצג שחקנים פעילים</Typography>
+            </Box>
                 <Box sx={{ flex: isMobile ? 'none' : 1, height: isMobile ? 0 : 'auto' }} />
-                <TextField
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="חפש שחקן"
-                  variant="outlined"
-                  size="small"
+            <TextField
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="חפש שחקן"
+              variant="outlined"
+              size="small"
                   sx={{ minWidth: isMobile ? '100%' : 200, width: isMobile ? '100%' : 'auto' }}
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={() => setAddDialogOpen(true)}
-                  startIcon={<AddIcon sx={{ ml: 1 }} />}
+            />
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => setAddDialogOpen(true)}
+              startIcon={<AddIcon sx={{ ml: 1 }} />}
                   sx={{
                     direction: 'rtl',
                     display: 'flex',
@@ -611,282 +611,282 @@ export default function PlayerManagerPage() {
                     width: isMobile ? '100%' : 'auto',
                     mt: isMobile ? 1 : 0,
                   }}
-                >
-                  הוסף שחקן
-                </Button>
-                {isSuperAdmin && (
+            >
+              הוסף שחקן
+            </Button>
+            {isSuperAdmin && (
                   <Button
                     variant="contained"
                     color="primary"
                     onClick={() => setAssignDialogOpen(true)}
                     sx={{ width: isMobile ? '100%' : 'auto', mt: isMobile ? 1 : 0 }}
                   >
-                    הקצה משימת דירוג
-                  </Button>
-                )}
-              </Paper>
-            </CardContent>
-          </Card>
-          <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)}>
-            <DialogTitle>הוסף שחקן חדש</DialogTitle>
-            <DialogContent>
+                הקצה משימת דירוג
+              </Button>
+            )}
+          </Paper>
+        </CardContent>
+      </Card>
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)}>
+        <DialogTitle>הוסף שחקן חדש</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="שם שחקן"
+            fullWidth
+            value={newPlayerName}
+            onChange={e => setNewPlayerName(e.target.value)}
+            disabled={adding}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDialogOpen(false)} disabled={adding}>ביטול</Button>
+          <Button onClick={handleAddPlayer} variant="contained" disabled={!newPlayerName.trim() || adding}>שמור</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>מחיקת שחקן</DialogTitle>
+        <DialogContent>
+          האם אתה בטוח שברצונך למחוק את השחקן "{playerToDelete?.name}"? פעולה זו אינה הפיכה.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={adding}>ביטול</Button>
+          <Button onClick={handleDeletePlayer} color="error" variant="contained" disabled={adding}>מחק</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
+        <DialogTitle>עריכת שחקן</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="שם"
+            fullWidth
+            margin="dense"
+            value={editName}
+            onChange={e => setEditName(e.target.value)}
+            disabled={editLoading}
+          />
+          <TextField
+            label={'סה"כ שערים'}
+            type="number"
+            fullWidth
+            margin="dense"
+            value={editGoals}
+            onChange={e => setEditGoals(Number(e.target.value))}
+            disabled={editLoading}
+          />
+          <TextField
+            label={'סה"כ בישולים'}
+            type="number"
+            fullWidth
+            margin="dense"
+            value={editAssists}
+            onChange={e => setEditAssists(Number(e.target.value))}
+            disabled={editLoading}
+          />
+          {editUserId ? (
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
               <TextField
-                autoFocus
-                margin="dense"
-                label="שם שחקן"
+                label="משתמש מקושר"
+                value={allUsers.find(u => u.uid === editUserId)?.email || ''}
                 fullWidth
-                value={newPlayerName}
-                onChange={e => setNewPlayerName(e.target.value)}
-                disabled={adding}
+                disabled
               />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setAddDialogOpen(false)} disabled={adding}>ביטול</Button>
-              <Button onClick={handleAddPlayer} variant="contained" disabled={!newPlayerName.trim() || adding}>שמור</Button>
-            </DialogActions>
-          </Dialog>
-          <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-            <DialogTitle>מחיקת שחקן</DialogTitle>
-            <DialogContent>
-              האם אתה בטוח שברצונך למחוק את השחקן "{playerToDelete?.name}"? פעולה זו אינה הפיכה.
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDeleteDialogOpen(false)} disabled={adding}>ביטול</Button>
-              <Button onClick={handleDeletePlayer} color="error" variant="contained" disabled={adding}>מחק</Button>
-            </DialogActions>
-          </Dialog>
-          <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
-            <DialogTitle>עריכת שחקן</DialogTitle>
-            <DialogContent>
-              <TextField
-                label="שם"
-                fullWidth
-                margin="dense"
-                value={editName}
-                onChange={e => setEditName(e.target.value)}
-                disabled={editLoading}
-              />
-              <TextField
-                label={'סה"כ שערים'}
-                type="number"
-                fullWidth
-                margin="dense"
-                value={editGoals}
-                onChange={e => setEditGoals(Number(e.target.value))}
-                disabled={editLoading}
-              />
-              <TextField
-                label={'סה"כ בישולים'}
-                type="number"
-                fullWidth
-                margin="dense"
-                value={editAssists}
-                onChange={e => setEditAssists(Number(e.target.value))}
-                disabled={editLoading}
-              />
-              {editUserId ? (
-                <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <TextField
-                    label="משתמש מקושר"
-                    value={allUsers.find(u => u.uid === editUserId)?.email || ''}
-                    fullWidth
-                    disabled
-                  />
-                  <Button onClick={handleUnlinkUser} color="warning" disabled={editLoading}>הסר קישור</Button>
-                </Box>
-              ) : (
-                <Autocomplete
-                  options={allUsers}
-                  getOptionLabel={option => option.email || ''}
-                  value={allUsers.find(u => u.uid === editUserId) || null}
-                  onChange={(_, v) => setEditUserId(v ? v.uid : null)}
-                  renderInput={params => (
-                    <TextField {...params} label="קשר משתמש (אופציונלי)" margin="dense" fullWidth disabled={editLoading || loadingUsers} />
-                  )}
-                  isOptionEqualToValue={(option, value) => option.uid === value?.uid}
-                  getOptionDisabled={option => option.playerId && option.playerId !== playerToEdit?.id}
-                  renderOption={(props, option) => (
-                    <li {...props} style={option.playerId && option.playerId !== playerToEdit?.id ? { color: '#888' } : {}}>
-                      {option.email + (option.playerId && option.playerId !== playerToEdit?.id ? ' (כבר מקושר)' : '')}
-                    </li>
-                  )}
-                />
-              )}
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setEditDialogOpen(false)} disabled={editLoading}>ביטול</Button>
-              <Button onClick={handleSaveEdit} variant="contained" disabled={editLoading || !editName.trim()}>שמור</Button>
-            </DialogActions>
-          </Dialog>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>
-          ) : error ? (
-            <Typography color="error">שגיאה בטעינת השחקנים: {error}</Typography>
+              <Button onClick={handleUnlinkUser} color="warning" disabled={editLoading}>הסר קישור</Button>
+            </Box>
           ) : (
-            <Box>
-              {/* Assign Task Dialog */}
-              <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
-                <DialogTitle>הקצה משימת דירוג</DialogTitle>
-                <DialogContent>
-                  <Autocomplete
-                    options={allUsers}
-                    getOptionLabel={option => option.email || option.name || option.uid || option.id || ''}
-                    value={allUsers.find(u => (u.uid || u.id) === selectedUser) || null}
-                    onChange={(_, v) => setSelectedUser(v?.uid || v?.id || '')}
-                    renderInput={params => <TextField {...params} label="בחר משתמש" variant="outlined" />}
-                    sx={{ width: 300, mb: 2 }}
-                  />
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={() => setAssignDialogOpen(false)}>ביטול</Button>
-                  <Button onClick={handleAssignTask} disabled={!selectedUser || assigning} variant="contained" color="primary">
-                    {assigning ? 'מעדכן...' : 'הקצה'}
-                  </Button>
-                </DialogActions>
-                {assignMessage && <Typography color={assignMessage.startsWith('שגיאה') ? 'error' : 'primary'} sx={{ m: 2 }}>{assignMessage}</Typography>}
-              </Dialog>
-              {/* Player Details Dialog */}
-              <Dialog open={playerDialogOpen} onClose={() => { setPlayerDialogOpen(false); setEditPlayerMode(false); }} maxWidth="xs" fullWidth>
-                <DialogTitle>פרטי שחקן</DialogTitle>
-                <DialogContent>
-                  {playerDialogData && (
-                    <Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="h6">{playerDialogData.name}</Typography>
-                        {!editPlayerMode && (
-                          <Button variant="outlined" color="primary" size="small" onClick={() => {
-                            setEditGoals(playerDialogData.totalGoals ?? 0);
-                            setEditAssists(playerDialogData.totalAssists ?? 0);
-                            setEditPlayerMode(true);
-                          }}>ערוך</Button>
-                        )}
-                      </Box>
-                      {/* Show user role under name if linked */}
-                      {playerDialogData.userId && (
-                        <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
-                          {getUserRoleLabel(allUsers.find(u => (u.uid || u.id) === playerDialogData.userId)?.role)}
-                        </Typography>
-                      )}
-                      <Typography>משחקי ערב: {playerDialogData.totalGameNights ?? '-'}</Typography>
-                      <Typography>מיני-משחקים: {playerDialogData.totalMiniGames ?? '-'}</Typography>
-                      <Typography>ניצחונות: {playerDialogData.totalWins ?? '-'}</Typography>
-                      {editPlayerMode ? (
-                        <>
-                          <TextField
-                            label="שערים"
-                            type="number"
-                            value={editGoals}
-                            onChange={e => setEditGoals(Number(e.target.value))}
-                            fullWidth
-                            sx={{ my: 1 }}
-                          />
-                          <TextField
-                            label="בישולים"
-                            type="number"
-                            value={editAssists}
-                            onChange={e => setEditAssists(Number(e.target.value))}
-                            fullWidth
-                            sx={{ my: 1 }}
-                          />
-                        </>
+            <Autocomplete
+              options={allUsers}
+              getOptionLabel={option => option.email || ''}
+              value={allUsers.find(u => u.uid === editUserId) || null}
+              onChange={(_, v) => setEditUserId(v ? v.uid : null)}
+              renderInput={params => (
+                <TextField {...params} label="קשר משתמש (אופציונלי)" margin="dense" fullWidth disabled={editLoading || loadingUsers} />
+              )}
+              isOptionEqualToValue={(option, value) => option.uid === value?.uid}
+              getOptionDisabled={option => option.playerId && option.playerId !== playerToEdit?.id}
+              renderOption={(props, option) => (
+                <li {...props} style={option.playerId && option.playerId !== playerToEdit?.id ? { color: '#888' } : {}}>
+                  {option.email + (option.playerId && option.playerId !== playerToEdit?.id ? ' (כבר מקושר)' : '')}
+                </li>
+              )}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={editLoading}>ביטול</Button>
+          <Button onClick={handleSaveEdit} variant="contained" disabled={editLoading || !editName.trim()}>שמור</Button>
+        </DialogActions>
+      </Dialog>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>
+      ) : error ? (
+        <Typography color="error">שגיאה בטעינת השחקנים: {error}</Typography>
+      ) : (
+        <Box>
+          {/* Assign Task Dialog */}
+          <Dialog open={assignDialogOpen} onClose={() => setAssignDialogOpen(false)}>
+            <DialogTitle>הקצה משימת דירוג</DialogTitle>
+            <DialogContent>
+              <Autocomplete
+                options={allUsers}
+                getOptionLabel={option => option.email || option.name || option.uid || option.id || ''}
+                value={allUsers.find(u => (u.uid || u.id) === selectedUser) || null}
+                onChange={(_, v) => setSelectedUser(v?.uid || v?.id || '')}
+                renderInput={params => <TextField {...params} label="בחר משתמש" variant="outlined" />}
+                sx={{ width: 300, mb: 2 }}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setAssignDialogOpen(false)}>ביטול</Button>
+              <Button onClick={handleAssignTask} disabled={!selectedUser || assigning} variant="contained" color="primary">
+                {assigning ? 'מעדכן...' : 'הקצה'}
+              </Button>
+            </DialogActions>
+            {assignMessage && <Typography color={assignMessage.startsWith('שגיאה') ? 'error' : 'primary'} sx={{ m: 2 }}>{assignMessage}</Typography>}
+          </Dialog>
+          {/* Player Details Dialog */}
+          <Dialog open={playerDialogOpen} onClose={() => { setPlayerDialogOpen(false); setEditPlayerMode(false); }} maxWidth="xs" fullWidth>
+            <DialogTitle>פרטי שחקן</DialogTitle>
+            <DialogContent>
+              {playerDialogData && (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="h6">{playerDialogData.name}</Typography>
+                    {!editPlayerMode && (
+                      <Button variant="outlined" color="primary" size="small" onClick={() => {
+                        setEditGoals(playerDialogData.totalGoals ?? 0);
+                        setEditAssists(playerDialogData.totalAssists ?? 0);
+                        setEditPlayerMode(true);
+                      }}>ערוך</Button>
+                    )}
+                  </Box>
+                  {/* Show user role under name if linked */}
+                  {playerDialogData.userId && (
+                    <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+                      {getUserRoleLabel(allUsers.find(u => (u.uid || u.id) === playerDialogData.userId)?.role)}
+                    </Typography>
+                  )}
+                  <Typography>משחקי ערב: {playerDialogData.totalGameNights ?? '-'}</Typography>
+                  <Typography>מיני-משחקים: {playerDialogData.totalMiniGames ?? '-'}</Typography>
+                  <Typography>ניצחונות: {playerDialogData.totalWins ?? '-'}</Typography>
+                  {editPlayerMode ? (
+                    <>
+                      <TextField
+                        label="שערים"
+                        type="number"
+                        value={editGoals}
+                        onChange={e => setEditGoals(Number(e.target.value))}
+                        fullWidth
+                        sx={{ my: 1 }}
+                      />
+                      <TextField
+                        label="בישולים"
+                        type="number"
+                        value={editAssists}
+                        onChange={e => setEditAssists(Number(e.target.value))}
+                        fullWidth
+                        sx={{ my: 1 }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Typography>שערים: {playerDialogData.totalGoals ?? '-'}</Typography>
+                      <Typography>בישולים: {playerDialogData.totalAssists ?? '-'}</Typography>
+                    </>
+                  )}
+                  {isSuperAdmin && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle1" fontWeight={700}>דירוגים לפי משתמש:</Typography>
+                      {playerRatings[playerDialogData.id]?.length > 0 ? (
+                        playerRatings[playerDialogData.id].map(r => {
+                          const user = allUsers.find(u => (u.uid || u.id) === r.userId);
+                          return (
+                            <Box key={r.userId} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography>{user ? (user.email || user.name || user.uid || user.id) : r.userId}</Typography>
+                              <Typography fontWeight={700}>{r.rating}</Typography>
+                            </Box>
+                          );
+                        })
                       ) : (
-                        <>
-                          <Typography>שערים: {playerDialogData.totalGoals ?? '-'}</Typography>
-                          <Typography>בישולים: {playerDialogData.totalAssists ?? '-'}</Typography>
-                        </>
+                        <Typography color="text.secondary">אין דירוגים לשחקן זה.</Typography>
                       )}
-                      {isSuperAdmin && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle1" fontWeight={700}>דירוגים לפי משתמש:</Typography>
-                          {playerRatings[playerDialogData.id]?.length > 0 ? (
-                            playerRatings[playerDialogData.id].map(r => {
-                              const user = allUsers.find(u => (u.uid || u.id) === r.userId);
-                              return (
-                                <Box key={r.userId} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                                  <Typography>{user ? (user.email || user.name || user.uid || user.id) : r.userId}</Typography>
-                                  <Typography fontWeight={700}>{r.rating}</Typography>
-                                </Box>
-                              );
-                            })
-                          ) : (
-                            <Typography color="text.secondary">אין דירוגים לשחקן זה.</Typography>
-                          )}
-                        </Box>
-                      )}
-                      {editPlayerMode && (
-                        <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            disabled={editLoading}
-                            onClick={async () => {
-                              setEditLoading(true);
-                              try {
-                                await updateDoc(doc(db, 'players', playerDialogData.id), {
-                                  totalGoals: editGoals,
-                                  totalAssists: editAssists,
-                                });
-                                setPlayerDialogData({ ...playerDialogData, totalGoals: editGoals, totalAssists: editAssists });
-                                setEditPlayerMode(false);
-                                showToast && showToast('השחקן עודכן בהצלחה', 'success');
-                              } catch (err) {
-                                showToast && showToast('שגיאה בעדכון שחקן', 'error');
-                              } finally {
-                                setEditLoading(false);
-                              }
-                            }}
-                          >שמור</Button>
-                          <Button variant="outlined" color="secondary" onClick={() => setEditPlayerMode(false)}>ביטול</Button>
-                        </Box>
-                      )}
-                      <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                        <Button variant="outlined" color="primary" onClick={() => { setPlayerDialogOpen(false); setEditPlayerMode(false); }}>סגור</Button>
-                      </Box>
                     </Box>
                   )}
-                </DialogContent>
-              </Dialog>
-              {/* Above the table, show the count */}
-              <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'right' }}>
-                מספר שחקנים מוצגים: {displayedPlayers.length}
-              </Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
-                        שם שחקן
-                        {sortField === 'name' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
+                  {editPlayerMode && (
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        disabled={editLoading}
+                        onClick={async () => {
+                          setEditLoading(true);
+                          try {
+                            await updateDoc(doc(db, 'players', playerDialogData.id), {
+                              totalGoals: editGoals,
+                              totalAssists: editAssists,
+                            });
+                            setPlayerDialogData({ ...playerDialogData, totalGoals: editGoals, totalAssists: editAssists });
+                            setEditPlayerMode(false);
+                            showToast && showToast('השחקן עודכן בהצלחה', 'success');
+                          } catch (err) {
+                            showToast && showToast('שגיאה בעדכון שחקן', 'error');
+                          } finally {
+                            setEditLoading(false);
+                          }
+                        }}
+                      >שמור</Button>
+                      <Button variant="outlined" color="secondary" onClick={() => setEditPlayerMode(false)}>ביטול</Button>
+                    </Box>
+                  )}
+                  <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                    <Button variant="outlined" color="primary" onClick={() => { setPlayerDialogOpen(false); setEditPlayerMode(false); }}>סגור</Button>
+                  </Box>
+                </Box>
+              )}
+            </DialogContent>
+          </Dialog>
+          {/* Above the table, show the count */}
+          <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'right' }}>
+            מספר שחקנים מוצגים: {displayedPlayers.length}
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+                    שם שחקן
+                    {sortField === 'name' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
+                  </TableCell>
+                  <TableCell onClick={() => handleSort('user')} style={{ cursor: 'pointer' }}>
+                    משתמש
+                    {sortField === 'user' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
+                  </TableCell>
+                  <TableCell>מנוי</TableCell>
+                  {isSuperAdmin && (
+                    <TableCell onClick={() => handleSort('rating')} style={{ cursor: 'pointer' }}>
+                      ממוצע דירוג
+                      {sortField === 'rating' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
+                    </TableCell>
+                  )}
+                  <TableCell>מחיקה</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {displayedPlayers.map((player: any) => (
+                    <TableRow key={player.id} hover style={{ cursor: 'pointer' }} onClick={() => { setPlayerDialogData(player); setPlayerDialogOpen(true); }}>
+                      <TableCell>{player.name}</TableCell>
+                      <TableCell>{player.userId ? userEmails[player.userId] : ''}</TableCell>
+                      <TableCell>{playerSubscriptions[player.id] ? `מנוי ${playerSubscriptions[player.id]}` : ''}</TableCell>
+                      {isSuperAdmin && <TableCell>{playerAverages[player.id] !== undefined ? playerAverages[player.id].toFixed(2) : '-'}</TableCell>}
+                      <TableCell>
+                        <IconButton onClick={e => { e.stopPropagation(); setPlayerToDelete(player); setDeleteDialogOpen(true); }}><DeleteIcon /></IconButton>
                       </TableCell>
-                      <TableCell onClick={() => handleSort('user')} style={{ cursor: 'pointer' }}>
-                        משתמש
-                        {sortField === 'user' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
-                      </TableCell>
-                      <TableCell>מנוי</TableCell>
-                      {isSuperAdmin && (
-                        <TableCell onClick={() => handleSort('rating')} style={{ cursor: 'pointer' }}>
-                          ממוצע דירוג
-                          {sortField === 'rating' && (sortDirection === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />)}
-                        </TableCell>
-                      )}
-                      <TableCell>מחיקה</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {displayedPlayers.map((player: any) => (
-                        <TableRow key={player.id} hover style={{ cursor: 'pointer' }} onClick={() => { setPlayerDialogData(player); setPlayerDialogOpen(true); }}>
-                          <TableCell>{player.name}</TableCell>
-                          <TableCell>{player.userId ? userEmails[player.userId] : ''}</TableCell>
-                          <TableCell>{playerSubscriptions[player.id] ? `מנוי ${playerSubscriptions[player.id]}` : ''}</TableCell>
-                          {isSuperAdmin && <TableCell>{playerAverages[player.id] !== undefined ? playerAverages[player.id].toFixed(2) : '-'}</TableCell>}
-                          <TableCell>
-                            <IconButton onClick={e => { e.stopPropagation(); setPlayerToDelete(player); setDeleteDialogOpen(true); }}><DeleteIcon /></IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                  ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
             </Box>
           )}
         </>

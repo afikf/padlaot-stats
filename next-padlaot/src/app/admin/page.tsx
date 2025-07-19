@@ -13,6 +13,8 @@ import { useToast } from '@/contexts/ToastContext';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import TournamentsAccordion from '@/components/admin/TournamentsAccordion';
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -35,6 +37,7 @@ export default function AdminPage() {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; gameDay: GameNight | null }>({ open: false, gameDay: null });
   const { showToast } = useToast();
   const router = useRouter();
+  const [tournaments, setTournaments] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchGames() {
@@ -195,6 +198,36 @@ export default function AdminPage() {
     }
   };
 
+  // Tournament handlers
+  const handleEditTournament = (tournament: any) => {
+    router.push(`/admin/tournaments/create?id=${tournament.id}&step=2&edit=1`);
+  };
+  const handleDeleteTournament = async (tournament: any) => {
+    await deleteDoc(doc(db, 'tournaments', tournament.id));
+    setTournaments(prev => prev.filter(t => t.id !== tournament.id));
+  };
+  const handleMakeLiveTournament = async (tournament: any) => {
+    await updateDoc(doc(db, 'tournaments', tournament.id), { status: 2 });
+    setTournaments(prev => prev.map(t => t.id === tournament.id ? { ...t, status: 2 } : t));
+  };
+
+  // Fetch tournaments
+  useEffect(() => {
+    async function fetchTournaments() {
+      try {
+        const tournamentsSnapshot = await getDocs(collection(db, 'tournaments'));
+        setTournaments(tournamentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (e) {
+        // handle error or leave tournaments empty
+      }
+    }
+    fetchTournaments();
+  }, []);
+
+  // Find live tournament
+  const liveTournament = tournaments.find(t => t.status === 2);
+  const otherTournaments = tournaments.filter(t => t.status !== 2);
+
   return (
     <AdminGuard>
       <Box sx={{ maxWidth: 700, mx: 'auto', py: 4 }}>
@@ -256,6 +289,39 @@ export default function AdminPage() {
             ) : (
               <AdminGameDaysAccordion gameDays={upcomingGames} players={players} onEdit={handleEdit} onDelete={requestDelete} onMakeLive={handleMakeLive} />
             )}
+            {/* Tournaments section below upcoming games */}
+            <Typography variant="h6" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
+              טורנירים
+            </Typography>
+            {/* Live Tournament Card */}
+            {liveTournament && (
+              <Card sx={{ mb: 3, border: '2px solid #7c3aed', boxShadow: 4, bgcolor: '#f3e8ff' }}>
+                <CardContent>
+                  <Typography variant="h6" fontWeight={900} color="secondary" gutterBottom>
+                    טורניר חי עכשיו
+                  </Typography>
+                  <Typography variant="body1" fontWeight={700}>
+                    {liveTournament.date}
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    sx={{ mt: 2, fontWeight: 900, fontSize: '1.1rem', px: 4, py: 1.5 }}
+                    fullWidth
+                    onClick={() => router.push(`/tournaments/${liveTournament.id}/live`)}
+                  >
+                    נהל טורניר חי
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            <TournamentsAccordion
+              tournaments={otherTournaments}
+              onEdit={handleEditTournament}
+              onDelete={handleDeleteTournament}
+              onMakeLive={handleMakeLiveTournament}
+              players={players}
+            />
             {/* Completed Games Button */}
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
               <Button variant="outlined" color="secondary" onClick={() => setShowCompleted(v => !v)}>

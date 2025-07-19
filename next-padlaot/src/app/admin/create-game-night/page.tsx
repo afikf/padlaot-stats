@@ -23,6 +23,9 @@ import { useSubscriptionsCache } from '@/hooks/useSubscriptionsCache';
 import { useAuth } from '@/contexts/AuthContext';
 import { collection, getDocs as getDocsFirestore } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import dynamic from 'next/dynamic';
+
+const TournamentWizard = dynamic(() => import('../tournaments/create/page'), { ssr: false });
 
 function CreateGameNightContent() {
   console.log('CreateGameNightPage rendered');
@@ -1074,9 +1077,42 @@ function CreateGameNightContent() {
 }
 
 export default function CreateGameNightPage() {
+  const [tab, setTab] = useState<'gameNight' | 'tournament'>('gameNight');
+
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <CreateGameNightContent />
-    </Suspense>
+    <AdminGuard>
+      <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
+        {/* Tabs */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 4, borderBottom: '2px solid #eee' }}>
+          <Button
+            variant={tab === 'gameNight' ? 'contained' : 'text'}
+            color={tab === 'gameNight' ? 'primary' : 'inherit'}
+            onClick={() => setTab('gameNight')}
+            sx={{ borderRadius: 0, fontWeight: 900, fontSize: 18, borderBottom: tab === 'gameNight' ? '4px solid #7c3aed' : 'none' }}
+          >
+            ערב משחק
+          </Button>
+          <Button
+            variant={tab === 'tournament' ? 'contained' : 'text'}
+            color={tab === 'tournament' ? 'primary' : 'inherit'}
+            onClick={() => setTab('tournament')}
+            sx={{ borderRadius: 0, fontWeight: 900, fontSize: 18, borderBottom: tab === 'tournament' ? '4px solid #7c3aed' : 'none' }}
+          >
+            טורניר
+          </Button>
+        </Box>
+        {/* Content */}
+        {tab === 'gameNight' && (
+          <Suspense fallback={<div>טוען...</div>}>
+            <CreateGameNightContent />
+          </Suspense>
+        )}
+        {tab === 'tournament' && (
+          <Suspense fallback={<div>טוען...</div>}>
+            <TournamentWizard />
+          </Suspense>
+        )}
+      </Box>
+    </AdminGuard>
   );
 } 
