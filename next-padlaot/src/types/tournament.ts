@@ -98,6 +98,7 @@ export interface Tournament {
   groups: Record<string, TournamentGroup>; // key: group id
   knockoutBracket?: KnockoutBracket;
   miniGames: TournamentMiniGame[];
+  tieBreaks?: { groupId: string; position: number; teamOrder: string[] }[];
   createdAt: number;
   updatedAt: number;
 }

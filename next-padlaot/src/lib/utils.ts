@@ -56,15 +56,15 @@ export function calculateValidQualifierDistributions(
   const strategies: Strategy[] = [];
 
   // Strategy 1: Equal distribution per group
-  const equalPerGroup = Math.floor(teamsPerGroup / 2);
-  if (equalPerGroup > 0) {
-    const totalEqual = equalPerGroup * numGroups;
-    if (isPowerOfTwo(totalEqual)) {
+  // Try different equal distributions per group
+  for (let qualifiersPerGroup = 1; qualifiersPerGroup <= teamsPerGroup; qualifiersPerGroup++) {
+    const totalEqual = qualifiersPerGroup * numGroups;
+    if (isPowerOfTwo(totalEqual) && totalEqual <= totalTeams) {
       strategies.push({
         type: 'equal',
-        qualifiersPerGroup: equalPerGroup,
+        qualifiersPerGroup: qualifiersPerGroup,
         total: totalEqual,
-        description: `${equalPerGroup} per group (${totalEqual} total)`
+        description: `${qualifiersPerGroup} per group (${totalEqual} total)`
       });
     }
   }
@@ -84,13 +84,22 @@ export function calculateValidQualifierDistributions(
         // Additional validation: make sure we don't exceed the number of available teams
         // and that the total is a power of 2
         if (isPowerOfTwo(totalQualifiers) && totalQualifiers <= totalTeams && additional <= teamsLeft) {
-          strategies.push({
-            type: 'uneven',
-            baseQualifiers,
-            additional,
-            total: totalQualifiers,
-            description: `${baseQualifiers} per group + ${additional} best remaining (${totalQualifiers} total)`
-          });
+          // Check if this "best remaining" strategy is redundant with an equal distribution
+          const equalQualifiersPerGroup = totalQualifiers / numGroups;
+          const hasRedundantEqual = equalQualifiersPerGroup === Math.floor(equalQualifiersPerGroup) && 
+                                   equalQualifiersPerGroup > 0 && 
+                                   equalQualifiersPerGroup <= teamsPerGroup;
+          
+          // Only add if there's no redundant equal distribution
+          if (!hasRedundantEqual) {
+            strategies.push({
+              type: 'uneven',
+              baseQualifiers,
+              additional,
+              total: totalQualifiers,
+              description: `${baseQualifiers} per group + ${additional} best remaining (${totalQualifiers} total)`
+            });
+          }
         }
       }
     }
@@ -147,8 +156,22 @@ export function calculateValidQualifierDistributions(
     }
   });
 
-  // Sort by total qualifiers (ascending)
-  validDistributions.sort((a, b) => a.totalQualifiers - b.totalQualifiers);
+  // Sort by total qualifiers (ascending), but prioritize equal distributions
+  validDistributions.sort((a, b) => {
+    // First sort by total qualifiers
+    if (a.totalQualifiers !== b.totalQualifiers) {
+      return a.totalQualifiers - b.totalQualifiers;
+    }
+    
+    // If same total, prioritize equal distributions (no "best remaining")
+    const aIsEqual = a.distribution.length === numGroups;
+    const bIsEqual = b.distribution.length === numGroups;
+    
+    if (aIsEqual && !bIsEqual) return -1;
+    if (!aIsEqual && bIsEqual) return 1;
+    
+    return 0;
+  });
 
   return validDistributions;
 }

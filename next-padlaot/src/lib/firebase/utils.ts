@@ -198,11 +198,12 @@ export function calculateGroupStandings(
     standing.goalDifference = standing.goalsFor - standing.goalsAgainst;
   });
   
-  // Sort standings by points, goal difference, goals scored
+  // Sort standings by points, goal difference, goals scored, number of wins
   const sortedStandings = Object.values(standings).sort((a, b) => {
     if (a.points !== b.points) return b.points - a.points;
     if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
+    return b.won - a.won;
   });
   
   // Assign positions
@@ -213,9 +214,114 @@ export function calculateGroupStandings(
   return sortedStandings;
 }
 
+// Function to detect ties in group standings
+export function detectTiesInGroupStandings(
+  group: TournamentGroup,
+  miniGames: TournamentMiniGame[]
+): { groupId: string; tiedTeams: string[]; position: number }[] {
+  const standings = calculateGroupStandings(group, miniGames);
+  const ties: { groupId: string; tiedTeams: string[]; position: number }[] = [];
+  
+  // Group teams by their stats to find ties
+  const teamsByStats = new Map<string, string[]>();
+  
+  standings.forEach(standing => {
+    const statsKey = `${standing.points}-${standing.goalDifference}-${standing.goalsFor}-${standing.won}`;
+    if (!teamsByStats.has(statsKey)) {
+      teamsByStats.set(statsKey, []);
+    }
+    teamsByStats.get(statsKey)!.push(standing.teamKey);
+  });
+  
+  // Find groups with more than one team (ties)
+  teamsByStats.forEach((teams, statsKey) => {
+    if (teams.length > 1) {
+      // Find the position of these tied teams
+      const firstTiedTeam = standings.find(s => s.teamKey === teams[0]);
+      if (firstTiedTeam) {
+        ties.push({
+          groupId: group.id,
+          tiedTeams: teams,
+          position: firstTiedTeam.position
+        });
+      }
+    }
+  });
+  
+  return ties;
+}
+
+// Function to detect ties across all groups
+export function detectAllTies(
+  tournament: Tournament
+): { groupId: string; tiedTeams: string[]; position: number }[] {
+  const allTies: { groupId: string; tiedTeams: string[]; position: number }[] = [];
+  
+  Object.values(tournament.groups).forEach(group => {
+    const groupTies = detectTiesInGroupStandings(group, tournament.miniGames);
+    allTies.push(...groupTies);
+  });
+  
+  return allTies;
+}
+
+// Function to apply tie-breaking decisions to standings
+export function applyTieBreaks(
+  group: TournamentGroup,
+  miniGames: TournamentMiniGame[],
+  tieBreaks: { groupId: string; position: number; teamOrder: string[] }[]
+): GroupStanding[] {
+  const standings = calculateGroupStandings(group, miniGames);
+  
+  console.log('applyTieBreaks called for group', group.id, 'with tie breaks:', tieBreaks);
+  console.log('Original standings:', standings);
+  
+  // Apply tie breaks for this group
+  tieBreaks
+    .filter(tieBreak => tieBreak.groupId === group.id)
+    .forEach(tieBreak => {
+      console.log('Processing tie break for position', tieBreak.position, 'with team order:', tieBreak.teamOrder);
+      
+      // Find the tied teams that should be reordered
+      const tiedTeams = standings.filter(s => tieBreak.teamOrder.includes(s.teamKey));
+      
+      console.log('Found tied teams to reorder:', tiedTeams);
+      
+      if (tiedTeams.length > 1) {
+        // Reorder the tied teams according to the tie break decision
+        const teamOrderMap = new Map<string, number>();
+        tieBreak.teamOrder.forEach((teamKey, index) => {
+          teamOrderMap.set(teamKey, index);
+        });
+        
+        // Sort the tied teams by the manual order
+        tiedTeams.sort((a, b) => {
+          const orderA = teamOrderMap.get(a.teamKey) ?? 0;
+          const orderB = teamOrderMap.get(b.teamKey) ?? 0;
+          return orderA - orderB;
+        });
+        
+        // Update positions for the tied teams
+        let currentPosition = tieBreak.position;
+        tiedTeams.forEach(team => {
+          team.position = currentPosition;
+          currentPosition++;
+        });
+        
+        console.log('Updated tied teams positions:', tiedTeams);
+      }
+    });
+  
+  // Re-sort by position
+  const result = standings.sort((a, b) => a.position - b.position);
+  console.log('Final standings after tie breaks:', result);
+  return result;
+}
+
 export function getQualifiersFromGroups(
   tournament: Tournament,
-  qualifierDistribution: number[]
+  qualifierDistribution: number[],
+  tieBreaks?: { groupId: string; position: number; teamOrder: string[] }[]
 ): string[] {
   const qualifiers: string[] = [];
   const groupIds = Object.keys(tournament.groups);
@@ -225,8 +331,10 @@ export function getQualifiersFromGroups(
     const group = tournament.groups[groupId];
     const qualifiersFromGroup = qualifierDistribution[index] || 0;
     
-    // Calculate standings for this group first
-    const groupStandings = calculateGroupStandings(group, tournament.miniGames);
+    // Calculate standings for this group, applying tie breaks if provided
+    const groupStandings = tieBreaks 
+      ? applyTieBreaks(group, tournament.miniGames, tieBreaks)
+      : calculateGroupStandings(group, tournament.miniGames);
     
     // Get top N teams from group standings
     const topTeams = groupStandings
@@ -238,6 +346,7 @@ export function getQualifiersFromGroups(
   
   // Handle "best remaining" qualifiers (last element in distribution)
   const bestRemainingCount = qualifierDistribution[qualifierDistribution.length - 1] || 0;
+  
   if (bestRemainingCount > 0) {
     // Get all teams that didn't qualify directly
     const qualifiedTeams = new Set(qualifiers);
@@ -324,7 +433,8 @@ function calculateCrossGroupStandings(
   return Object.values(standings).sort((a, b) => {
     if (a.points !== b.points) return b.points - a.points;
     if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
+    return b.won - a.won;
   });
 }
 
@@ -426,6 +536,203 @@ export function generateKnockoutBracket(qualifiers: string[]): KnockoutBracket {
   };
 }
 
+// Generate cross-group knockout bracket
+export function generateCrossGroupKnockoutBracket(
+  tournament: Tournament,
+  qualifierDistribution: number[]
+): KnockoutBracket {
+  const groupIds = Object.keys(tournament.groups);
+  const qualifiersByGroup: Record<string, string[]> = {};
+  
+  console.log('Generating cross-group bracket with:', {
+    groupIds,
+    qualifierDistribution,
+    tournamentGroups: tournament.groups
+  });
+  
+  // Check if this is a "best remaining" distribution
+  const hasBestRemaining = qualifierDistribution.length > groupIds.length;
+  const bestRemainingCount = hasBestRemaining ? qualifierDistribution[qualifierDistribution.length - 1] : 0;
+  
+  console.log('Distribution analysis:', {
+    hasBestRemaining,
+    bestRemainingCount,
+    groupQualifiers: qualifierDistribution.slice(0, groupIds.length)
+  });
+  
+  // Get qualifiers from each group based on distribution
+  groupIds.forEach((groupId, index) => {
+    const group = tournament.groups[groupId];
+    const qualifiersFromGroup = qualifierDistribution[index] || 0;
+    
+    console.log(`Processing group ${groupId}:`, {
+      qualifiersFromGroup,
+      groupTeams: group.teams
+    });
+    
+    // Calculate standings for this group, applying tie breaks if available
+    console.log(`Group ${groupId} - Checking for tie breaks:`, tournament.tieBreaks);
+    const groupStandings = tournament.tieBreaks && tournament.tieBreaks.length > 0
+      ? applyTieBreaks(group, tournament.miniGames, tournament.tieBreaks)
+      : calculateGroupStandings(group, tournament.miniGames);
+    
+    console.log(`Group ${groupId} standings:`, groupStandings);
+    
+    // Get top N teams from group standings
+    const topTeams = groupStandings
+      .slice(0, qualifiersFromGroup)
+      .map(standing => standing.teamKey);
+    
+    qualifiersByGroup[groupId] = topTeams;
+    
+    console.log(`Group ${groupId} qualifiers:`, topTeams);
+  });
+  
+  // Handle "best remaining" qualifiers if needed
+  if (hasBestRemaining && bestRemainingCount > 0) {
+    console.log('Processing best remaining qualifiers...');
+    
+    // Get all teams that didn't qualify directly
+    const qualifiedTeams = new Set(Object.values(qualifiersByGroup).flat());
+    const allTeams = Object.keys(tournament.teams);
+    const remainingTeams = allTeams.filter(team => !qualifiedTeams.has(team));
+    
+    console.log('Remaining teams for best remaining selection:', remainingTeams);
+    
+    // Calculate standings for remaining teams across all groups
+    const remainingStandings = calculateCrossGroupStandings(tournament, remainingTeams);
+    
+    console.log('Remaining teams standings:', remainingStandings);
+    
+    // Get best N remaining teams
+    const bestRemaining = remainingStandings
+      .slice(0, bestRemainingCount)
+      .map(standing => standing.teamKey);
+    
+    console.log('Best remaining qualifiers:', bestRemaining);
+    
+    // Distribute best remaining teams to groups for cross-group matching
+    // For 2 groups, split them evenly
+    if (groupIds.length === 2) {
+      const half = Math.ceil(bestRemaining.length / 2);
+      qualifiersByGroup[groupIds[0]].push(...bestRemaining.slice(0, half));
+      qualifiersByGroup[groupIds[1]].push(...bestRemaining.slice(half));
+    } else {
+      // For more groups, distribute evenly
+      bestRemaining.forEach((team, index) => {
+        const groupIndex = index % groupIds.length;
+        qualifiersByGroup[groupIds[groupIndex]].push(team);
+      });
+    }
+    
+    console.log('Updated qualifiers by group after best remaining:', qualifiersByGroup);
+  }
+  
+  // Create cross-group matches
+  const firstRound: KnockoutMatch[] = [];
+  let matchNumber = 1;
+  
+  // For 2 groups, create proper cross-group seeding
+  if (groupIds.length === 2) {
+    const groupAId = groupIds[0];
+    const groupBId = groupIds[1];
+    const groupAQualifiers = qualifiersByGroup[groupAId];
+    const groupBQualifiers = qualifiersByGroup[groupBId];
+    
+    console.log('Creating 2-group cross matches:', {
+      groupAId,
+      groupBId,
+      groupAQualifiers,
+      groupBQualifiers
+    });
+    
+    // Create cross-group matches: 1st vs 2nd, 2nd vs 1st
+    const maxQualifiers = Math.max(groupAQualifiers.length, groupBQualifiers.length);
+    
+    for (let i = 0; i < maxQualifiers; i++) {
+      const teamA = groupAQualifiers[i];
+      const teamB = groupBQualifiers[groupBQualifiers.length - 1 - i]; // Reverse order for cross-group
+      
+      console.log(`Creating match ${matchNumber}: ${teamA} vs ${teamB}`);
+      
+      if (teamA && teamB) {
+        firstRound.push({
+          id: `round-1-match-${matchNumber}`,
+          round: 1,
+          matchNumber: matchNumber,
+          teamA: teamA,
+          teamB: teamB,
+          status: 'pending',
+          goals: []
+        });
+        matchNumber++;
+      }
+    }
+  } else {
+    // For more than 2 groups, use a different approach
+    // For now, just create matches between adjacent groups
+    for (let i = 0; i < groupIds.length; i++) {
+      const currentGroupId = groupIds[i];
+      const currentGroupQualifiers = qualifiersByGroup[currentGroupId];
+      
+      // Find the next group to match against
+      const nextGroupIndex = (i + 1) % groupIds.length;
+      const nextGroupId = groupIds[nextGroupIndex];
+      const nextGroupQualifiers = qualifiersByGroup[nextGroupId];
+      
+      // Create cross-group matches
+      const maxQualifiers = Math.max(currentGroupQualifiers.length, nextGroupQualifiers.length);
+      
+      for (let j = 0; j < maxQualifiers; j++) {
+        const teamA = currentGroupQualifiers[j];
+        const teamB = nextGroupQualifiers[j];
+        
+        if (teamA && teamB) {
+          firstRound.push({
+            id: `round-1-match-${matchNumber}`,
+            round: 1,
+            matchNumber: matchNumber,
+            teamA: teamA,
+            teamB: teamB,
+            status: 'pending',
+            goals: []
+          });
+          matchNumber++;
+        }
+      }
+    }
+  }
+  
+  console.log('Final first round matches:', firstRound);
+  
+  // Create subsequent rounds (final, third place, etc.)
+  const totalQualifiers = firstRound.length;
+  const totalRounds = Math.ceil(Math.log2(totalQualifiers)) + 1; // +1 for final/third place
+  const rounds: KnockoutMatch[][] = [firstRound];
+  
+  for (let round = 2; round <= totalRounds; round++) {
+    const matchesInRound = Math.max(1, Math.pow(2, totalRounds - round));
+    const roundMatches: KnockoutMatch[] = [];
+    
+    for (let match = 1; match <= matchesInRound; match++) {
+      roundMatches.push({
+        id: `round-${round}-match-${match}`,
+        round,
+        matchNumber: match,
+        status: 'pending',
+        goals: []
+      });
+    }
+    
+    rounds.push(roundMatches);
+  }
+  
+  return {
+    rounds,
+    totalRounds
+  };
+}
+
 // Convert knockout bracket to Firestore-compatible format
 export function convertKnockoutBracketForFirestore(bracket: KnockoutBracket): any {
   // Convert nested arrays to flat structure with round keys
@@ -435,7 +742,14 @@ export function convertKnockoutBracketForFirestore(bracket: KnockoutBracket): an
   };
   
   bracket.rounds.forEach((round, roundIndex) => {
-    firestoreBracket.rounds[`round${roundIndex + 1}`] = round;
+    // Clean the round data to ensure no undefined values
+    const cleanRound = round.map(match => ({
+      ...match,
+      teamA: match.teamA || null,
+      teamB: match.teamB || null,
+      winner: match.winner || null
+    }));
+    firestoreBracket.rounds[`round${roundIndex + 1}`] = cleanRound;
   });
   
   return firestoreBracket;
@@ -472,8 +786,8 @@ export async function startKnockoutStage(tournamentId: string): Promise<void> {
   // Get qualifiers based on current standings
   const qualifiers = getQualifiersFromGroups(tournament, tournament.settings.qualifierDistribution);
   
-  // Generate knockout bracket
-  const knockoutBracket = generateKnockoutBracket(qualifiers);
+  // Generate cross-group knockout bracket
+  const knockoutBracket = generateCrossGroupKnockoutBracket(tournament, tournament.settings.qualifierDistribution);
   
   // Update tournament
   await updateDoc(tournamentRef, {

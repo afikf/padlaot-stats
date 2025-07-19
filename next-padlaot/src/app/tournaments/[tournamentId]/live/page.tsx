@@ -5,7 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { Tournament, TournamentTeam, TournamentMiniGame, TOURNAMENT_STATUS_MAP } from '@/types/tournament';
-import { getQualifiersFromGroups, generateKnockoutBracket, convertKnockoutBracketForFirestore } from '@/lib/firebase/utils';
+import { getQualifiersFromGroups, generateCrossGroupKnockoutBracket, convertKnockoutBracketForFirestore, convertFirestoreToKnockoutBracket, detectAllTies, applyTieBreaks } from '@/lib/firebase/utils';
 import { Box, Typography, Card, CardContent, Button, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions, Select, MenuItem, FormControl, InputLabel, TextField, IconButton, Tooltip } from '@mui/material';
 import { usePlayerStatsCache } from '@/hooks/usePlayerStatsCache';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -18,7 +18,9 @@ import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import TournamentTabs from '@/components/admin/TournamentTabs';
 import KnockoutBracket from '@/components/admin/KnockoutBracket';
+import TieBreakingDialog from '@/components/admin/TieBreakingDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdmin } from '@/contexts/AdminContext';
 
 function getPlayerName(players: any[], id: string) {
   const player = players.find((p) => p.id === id);
@@ -32,6 +34,7 @@ export default function LiveTournamentPage() {
   const [error, setError] = useState<string | null>(null);
   const { players, loading: loadingPlayers } = usePlayerStatsCache();
   const { user } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAdmin();
 
   // Move theme and isMobile hooks to the top
   const theme = useTheme();
@@ -92,6 +95,11 @@ export default function LiveTournamentPage() {
 
   // Auto-redirect to knockout tab when group stage is completed
   const [activeTab, setActiveTab] = useState<'group' | 'knockout'>('group');
+
+  // Tie-breaking dialog state
+  const [tieBreakingDialogOpen, setTieBreakingDialogOpen] = useState(false);
+  const [detectedTies, setDetectedTies] = useState<{ groupId: string; tiedTeams: string[]; position: number }[]>([]);
+  const [tieBreaks, setTieBreaks] = useState<{ groupId: string; position: number; teamOrder: string[] }[]>([]);
 
   const miniGames = tournament?.miniGames || [];
   
@@ -553,7 +561,105 @@ export default function LiveTournamentPage() {
       const data = snap.data();
       const miniGames = Array.isArray(data.miniGames) ? data.miniGames : [];
       const updatedMiniGames = miniGames.map((g: any) => g.id === miniGameToEdit.id ? { ...editState } : g);
-      await updateDoc(ref, { miniGames: updatedMiniGames });
+      
+      // Check if this is a knockout game with a draw that's being completed
+      if (miniGameToEdit.knockoutMatchId && editState.status === 'complete' && editState.scoreA === editState.scoreB) {
+        // Show draw resolution dialog for edited game
+        setDrawMiniGame(editState);
+        setSelectedWinner('');
+        setDrawResolutionDialogOpen(true);
+        setEditDialogOpen(false);
+        setMiniGameToEdit(null);
+        setEditState(null);
+        setSavingEdit(false);
+        return;
+      }
+      
+      // If this is a knockout game and it's being completed, handle bracket advancement
+      let updatedBracket: any = null;
+      if (miniGameToEdit.knockoutMatchId && editState.status === 'complete' && tournament.knockoutBracket) {
+        updatedBracket = { ...tournament.knockoutBracket };
+        const winner = editState.scoreA > editState.scoreB ? editState.teamA : editState.teamB;
+        const loser = editState.teamA === winner ? editState.teamB : editState.teamA;
+        
+        // Update the match in the bracket
+        Object.keys(updatedBracket.rounds).forEach((roundKey) => {
+          const round = (updatedBracket.rounds as any)[roundKey];
+          if (Array.isArray(round)) {
+            round.forEach((match: any) => {
+              if (match.id === miniGameToEdit.knockoutMatchId) {
+                match.winner = winner;
+                match.status = 'complete';
+              }
+            });
+          }
+        });
+        
+        // Handle bracket advancement for semi-finals
+        if (miniGameToEdit.knockoutMatchId.startsWith('semi-')) {
+          // Check if both semi-finals are complete
+          const allSemiFinals = updatedMiniGames.filter((g: any) => 
+            g.knockoutMatchId && g.knockoutMatchId.startsWith('semi-') && g.status === 'complete'
+          );
+          
+          if (allSemiFinals.length === 2) {
+            // Both semi-finals are complete, set final teams
+            const semiFinalWinners = allSemiFinals.map((g: any) => 
+              g.scoreA > g.scoreB ? g.teamA : g.teamB
+            );
+            
+            // Set final teams
+            const finalRound = (updatedBracket.rounds as any)['round2'];
+            if (finalRound && Array.isArray(finalRound) && finalRound[0]) {
+              const final = finalRound[0];
+              final.teamA = semiFinalWinners[0];
+              final.teamB = semiFinalWinners[1];
+            }
+            
+            // Set third place teams
+            const semiFinalLosers = allSemiFinals.map((g: any) => 
+              g.scoreA > g.scoreB ? g.teamB : g.teamA
+            );
+            
+            const thirdPlaceRound = (updatedBracket.rounds as any)['round3'];
+            if (thirdPlaceRound && Array.isArray(thirdPlaceRound) && thirdPlaceRound[0]) {
+              const thirdPlace = thirdPlaceRound[0];
+              thirdPlace.teamA = semiFinalLosers[0];
+              thirdPlace.teamB = semiFinalLosers[1];
+            }
+          } else {
+            // Only one semi-final complete, just advance the winner
+            const finalRound = (updatedBracket.rounds as any)['round2'];
+            if (finalRound && Array.isArray(finalRound) && finalRound[0]) {
+              const final = finalRound[0];
+              if (!final.teamA) {
+                final.teamA = winner;
+              } else if (!final.teamB) {
+                final.teamB = winner;
+              }
+            }
+            
+            // Add loser to third place game
+            const thirdPlaceRound = (updatedBracket.rounds as any)['round3'];
+            if (thirdPlaceRound && Array.isArray(thirdPlaceRound) && thirdPlaceRound[0]) {
+              const thirdPlace = thirdPlaceRound[0];
+              if (!thirdPlace.teamA) {
+                thirdPlace.teamA = loser;
+              } else if (!thirdPlace.teamB) {
+                thirdPlace.teamB = loser;
+              }
+            }
+          }
+        }
+      }
+      
+      // Update both mini-games and bracket if needed
+      const updateData: any = { miniGames: updatedMiniGames };
+      if (updatedBracket) {
+        updateData.knockoutBracket = updatedBracket;
+      }
+      
+      await updateDoc(ref, updateData);
       setEditDialogOpen(false);
       setMiniGameToEdit(null);
       setEditState(null);
@@ -813,6 +919,19 @@ export default function LiveTournamentPage() {
       position: index + 1
     }));
     
+    // Apply tie breaks if available (from stored tournament data)
+    console.log('Checking for tie breaks for group', group.id, 'Tournament tie breaks:', tournament.tieBreaks);
+    if (tournament.tieBreaks && tournament.tieBreaks.length > 0) {
+      const groupTieBreaks = tournament.tieBreaks.filter((tb: any) => tb.groupId === group.id);
+      console.log('Group tie breaks for', group.id, ':', groupTieBreaks);
+      if (groupTieBreaks.length > 0) {
+        console.log('Applying tie breaks for group', group.id);
+        const result = applyTieBreaks(group, miniGames, groupTieBreaks);
+        console.log('Result after applying tie breaks:', result);
+        return result;
+      }
+    }
+    
     return orderedStandings;
   };
 
@@ -925,11 +1044,55 @@ export default function LiveTournamentPage() {
       console.log('Groups:', tournament.groups);
       console.log('Settings:', tournament.settings);
       
-      // Get qualifiers based on current standings
-      const qualifiers = getQualifiersFromGroups(tournament, tournament.settings.qualifierDistribution);
+      // Check for ties before proceeding
+      const ties = detectAllTies(tournament);
       
-      // Generate knockout bracket
-      const knockoutBracket = generateKnockoutBracket(qualifiers);
+      if (ties.length > 0) {
+        // Show tie-breaking dialog
+        setDetectedTies(ties);
+        setTieBreakingDialogOpen(true);
+        setCompleteGroupDialogOpen(false);
+        return;
+      }
+      
+      // No ties, proceed with normal completion
+      await completeGroupStageWithTieBreaks([]);
+      
+    } catch (error: any) {
+      console.error('Error completing group stage:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      alert(`שגיאה בסיום שלב הבתים: ${error.message || 'Unknown error'}`);
+    }
+  }
+
+  async function completeGroupStageWithTieBreaks(tieBreaks: { groupId: string; position: number; teamOrder: string[] }[]) {
+    if (!tournament) return;
+    
+    try {
+      // Store tie-breaking decisions in the tournament document
+      console.log('Storing tie breaks in database:', tieBreaks);
+      await updateDoc(doc(db, 'tournaments', tournament.id), {
+        tieBreaks: tieBreaks
+      });
+      console.log('Tie breaks stored successfully');
+      
+      // Create a temporary tournament object with tie breaks for bracket generation
+      const tournamentWithTieBreaks = {
+        ...tournament,
+        tieBreaks: tieBreaks
+      };
+      
+      // Get qualifiers based on current standings (with tie breaks if provided)
+      const qualifiers = getQualifiersFromGroups(tournamentWithTieBreaks, tournament.settings.qualifierDistribution, tieBreaks);
+      console.log('Qualifiers with tie breaks:', qualifiers);
+      
+      // Generate cross-group knockout bracket using the tournament with tie breaks
+      const knockoutBracket = generateCrossGroupKnockoutBracket(tournamentWithTieBreaks, tournament.settings.qualifierDistribution);
+      console.log('Generated knockout bracket:', knockoutBracket);
       
       // Convert to Firestore-compatible format
       const firestoreBracket = convertKnockoutBracketForFirestore(knockoutBracket);
@@ -941,20 +1104,21 @@ export default function LiveTournamentPage() {
         knockoutBracket: firestoreBracket
       });
       
-
       setCompleteGroupDialogOpen(false);
+      setTieBreakingDialogOpen(false);
       
       // Auto-redirect to knockout tab
       setActiveTab('knockout');
     } catch (error: any) {
-      console.error('Error completing group stage:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
+      console.error('Error completing group stage with tie breaks:', error);
       alert(`שגיאה בסיום שלב הבתים: ${error.message || 'Unknown error'}`);
     }
+  }
+
+  function handleTieBreakingConfirm(tieBreaks: { groupId: string; position: number; teamOrder: string[] }[]) {
+    console.log('Tie breaking confirmed:', tieBreaks);
+    setTieBreaks(tieBreaks);
+    completeGroupStageWithTieBreaks(tieBreaks);
   }
 
   const groupStageContent = (
@@ -1129,8 +1293,25 @@ export default function LiveTournamentPage() {
         position: 'relative' 
       }}>
         <Typography variant="h4" fontWeight={900} color="primary" align="center" gutterBottom>
-          ניהול טורניר חי
+          {isTournamentCompleted ? 'טורניר הושלם' : 'ניהול טורניר חי'}
         </Typography>
+        {isTournamentCompleted && (
+          <Box sx={{ 
+            mb: 3, 
+            p: 2, 
+            bgcolor: '#e8f5e8', 
+            border: '2px solid #4caf50', 
+            borderRadius: 2, 
+            textAlign: 'center' 
+          }}>
+            <Typography variant="h6" color="#2e7d32" fontWeight={700}>
+              הטורניר הושלם - מצב קריאה בלבד
+            </Typography>
+            <Typography variant="body2" color="#2e7d32">
+              לא ניתן ליצור משחקים חדשים או לערוך משחקים קיימים
+            </Typography>
+          </Box>
+        )}
         <Box sx={{ mb: 2, textAlign: 'center' }}>
           <Typography variant="h6" fontWeight={700}>
             תאריך: {tournament.date} | סטטוס: {TOURNAMENT_STATUS_MAP_HE[tournament.status] || tournament.status}
@@ -1170,7 +1351,7 @@ export default function LiveTournamentPage() {
             <Typography variant="h6" fontWeight={700} gutterBottom>
               מיני-משחקים
             </Typography>
-            {tournament.status === 2 && !isTournamentCompleted && (
+            {tournament.status === 2 && !isTournamentCompleted && !tournament.knockoutBracket && (
               <Tooltip
                 title={allPitchesBusy ? 'שני מגרשים פעילים, סיים משחק כדי ליצור חדש' : ''}
                 arrow
@@ -1552,9 +1733,17 @@ export default function LiveTournamentPage() {
     const now = Date.now();
     
     // Update the mini-game with the selected winner
-    const updatedMiniGames = miniGames.map((g: any) =>
-      g.id === drawMiniGame.id ? { ...g, status: 'complete', endTime: now } : g
-    );
+    // If drawMiniGame has an id, it's from the regular flow, otherwise it's from edit flow
+    const updatedMiniGames = miniGames.map((g: any) => {
+      if (g.id === drawMiniGame.id) {
+        // Regular flow - update with complete status and endTime
+        return { ...g, status: 'complete', endTime: now };
+      } else if (drawMiniGame.teamA && drawMiniGame.teamB && g.teamA === drawMiniGame.teamA && g.teamB === drawMiniGame.teamB && g.knockoutMatchId === drawMiniGame.knockoutMatchId) {
+        // Edit flow - use the edited data from drawMiniGame
+        return { ...drawMiniGame, status: 'complete', endTime: now };
+      }
+      return g;
+    });
     
     // Update the bracket with the winner
     if (tournament.knockoutBracket) {
@@ -1574,60 +1763,48 @@ export default function LiveTournamentPage() {
       });
       
       // Handle bracket advancement for 4-team tournament
-      if (drawMiniGame.knockoutMatchId.startsWith('semi-')) {
+      if (drawMiniGame.knockoutMatchId.startsWith('round-1-match-')) {
         console.log('Processing semi-final advancement for draw resolution:', drawMiniGame.knockoutMatchId);
         console.log('Selected winner:', selectedWinner);
-        
-        // Find the current match
-        let currentMatch = null;
-        Object.keys(updatedBracket.rounds).forEach((roundKey) => {
-          const round = (updatedBracket.rounds as any)[roundKey];
-          if (Array.isArray(round)) {
-            const match = round.find((m: any) => m.id === drawMiniGame.knockoutMatchId);
-            if (match) currentMatch = match;
-          }
-        });
         
         const loser = drawMiniGame.teamA === selectedWinner ? drawMiniGame.teamB : drawMiniGame.teamA;
         console.log('Loser:', loser);
         
-        if (currentMatch) {
-          // Advance winner to final (round2)
-          const finalRound = (updatedBracket.rounds as any)['round2'];
-          console.log('Final round before draw resolution update:', finalRound);
-          if (finalRound && Array.isArray(finalRound) && finalRound[0]) {
-            const final = finalRound[0];
-            if (!final.teamA) {
-              final.teamA = selectedWinner;
-              console.log('Set final.teamA to:', selectedWinner);
-            } else if (!final.teamB) {
-              final.teamB = selectedWinner;
-              console.log('Set final.teamB to:', selectedWinner);
-            }
+        // Advance winner to final (round2)
+        const finalRound = (updatedBracket.rounds as any)['round2'];
+        console.log('Final round before draw resolution update:', finalRound);
+        if (finalRound && Array.isArray(finalRound) && finalRound[0]) {
+          const final = finalRound[0];
+          if (!final.teamA) {
+            final.teamA = selectedWinner;
+            console.log('Set final.teamA to:', selectedWinner);
+          } else if (!final.teamB) {
+            final.teamB = selectedWinner;
+            console.log('Set final.teamB to:', selectedWinner);
           }
-          console.log('Final round after draw resolution update:', finalRound);
-          
-          // Add loser to third place game (round3)
-          const thirdPlaceRound = (updatedBracket.rounds as any)['round3'];
-          console.log('Third place round before draw resolution update:', thirdPlaceRound);
-          if (thirdPlaceRound && Array.isArray(thirdPlaceRound) && thirdPlaceRound[0]) {
-            const thirdPlace = thirdPlaceRound[0];
-            if (!thirdPlace.teamA) {
-              thirdPlace.teamA = loser;
-              console.log('Set thirdPlace.teamA to:', loser);
-            } else if (!thirdPlace.teamB) {
-              thirdPlace.teamB = loser;
-              console.log('Set thirdPlace.teamB to:', loser);
-            }
-          }
-          console.log('Third place round after draw resolution update:', thirdPlaceRound);
         }
+        console.log('Final round after draw resolution update:', finalRound);
+        
+        // Add loser to third place game (round3)
+        const thirdPlaceRound = (updatedBracket.rounds as any)['round3'];
+        console.log('Third place round before draw resolution update:', thirdPlaceRound);
+        if (thirdPlaceRound && Array.isArray(thirdPlaceRound) && thirdPlaceRound[0]) {
+          const thirdPlace = thirdPlaceRound[0];
+          if (!thirdPlace.teamA) {
+            thirdPlace.teamA = loser;
+            console.log('Set thirdPlace.teamA to:', loser);
+          } else if (!thirdPlace.teamB) {
+            thirdPlace.teamB = loser;
+            console.log('Set thirdPlace.teamB to:', loser);
+          }
+        }
+        console.log('Third place round after draw resolution update:', thirdPlaceRound);
         
         console.log('Updated bracket after draw resolution:', updatedBracket);
-      } else if (drawMiniGame.knockoutMatchId === 'final') {
+      } else if (drawMiniGame.knockoutMatchId === 'round-2-match-1') {
         // Final completed - tournament is done
         console.log('Tournament final completed!');
-      } else if (drawMiniGame.knockoutMatchId === 'third-place') {
+      } else if (drawMiniGame.knockoutMatchId === 'round-3-match-1') {
         // Third place game completed
         console.log('Third place game completed!');
       }
@@ -1679,7 +1856,153 @@ export default function LiveTournamentPage() {
     // TODO: Update the bracket with the winner advancing to next round
   }
 
+  async function handleSwapKnockoutTeams(fromMatchId: string, toMatchId: string, fromTeamKey: string, toTeamKey: string) {
+    if (!tournament?.knockoutBracket) return;
 
+    console.log('Swapping teams:', { fromMatchId, toMatchId, fromTeamKey, toTeamKey });
+
+    try {
+      // Find the matches in the bracket
+      const bracket = tournament.knockoutBracket.rounds && Array.isArray(tournament.knockoutBracket.rounds) 
+        ? tournament.knockoutBracket 
+        : convertFirestoreToKnockoutBracket(tournament.knockoutBracket);
+
+      let fromMatch: any = null;
+      let toMatch: any = null;
+      let fromRoundIndex = -1;
+      let toRoundIndex = -1;
+
+      // Find the matches in the bracket
+      bracket.rounds.forEach((round: any, roundIndex: number) => {
+        round.forEach((match: any) => {
+          if (match.id === fromMatchId) {
+            fromMatch = match;
+            fromRoundIndex = roundIndex;
+          }
+          if (match.id === toMatchId) {
+            toMatch = match;
+            toRoundIndex = roundIndex;
+          }
+        });
+      });
+
+      if (!fromMatch || !toMatch) {
+        console.error('Could not find matches for swapping');
+        return;
+      }
+
+      // Check if matches are in the same round (for now, only allow same round swaps)
+      if (fromRoundIndex !== toRoundIndex) {
+        console.error('Can only swap teams within the same round');
+        return;
+      }
+
+      // Check if matches haven't started yet
+      const fromMiniGame = miniGames.find((g: any) => g.knockoutMatchId === fromMatchId);
+      const toMiniGame = miniGames.find((g: any) => g.knockoutMatchId === toMatchId);
+      
+      if (fromMiniGame?.status === 'live' || toMiniGame?.status === 'live') {
+        console.error('Cannot swap teams in live matches');
+        return;
+      }
+
+      // Verify that the teams exist in their respective matches
+      if (fromMatch.teamA !== fromTeamKey && fromMatch.teamB !== fromTeamKey) {
+        console.error('From team not found in source match');
+        return;
+      }
+      if (toMatch.teamA !== toTeamKey && toMatch.teamB !== toTeamKey) {
+        console.error('To team not found in target match');
+        return;
+      }
+
+      // Create the updated bracket with only the specific teams swapped
+      const updatedBracket = {
+        ...bracket,
+        rounds: bracket.rounds.map((round: any, roundIndex: number) => 
+          round.map((match: any) => {
+            if (match.id === fromMatchId) {
+              // In the source match, replace the dragged team with the target team
+              const updatedMatch = {
+                ...match,
+                teamA: match.teamA === fromTeamKey ? toTeamKey : match.teamA,
+                teamB: match.teamB === fromTeamKey ? toTeamKey : match.teamB,
+                winner: null // Reset winner since teams changed
+              };
+              console.log('Updated fromMatch:', match.id, 'from', match.teamA, 'vs', match.teamB, 'to', updatedMatch.teamA, 'vs', updatedMatch.teamB);
+              return updatedMatch;
+            }
+            if (match.id === toMatchId) {
+              // In the target match, replace the target team with the dragged team
+              const updatedMatch = {
+                ...match,
+                teamA: match.teamA === toTeamKey ? fromTeamKey : match.teamA,
+                teamB: match.teamB === toTeamKey ? fromTeamKey : match.teamB,
+                winner: null // Reset winner since teams changed
+              };
+              console.log('Updated toMatch:', match.id, 'from', match.teamA, 'vs', match.teamB, 'to', updatedMatch.teamA, 'vs', updatedMatch.teamB);
+              return updatedMatch;
+            }
+            return match;
+          })
+        )
+      };
+
+      // Convert back to Firestore format if needed
+      const firestoreBracket = convertKnockoutBracketForFirestore(updatedBracket);
+
+      // Update the tournament in Firestore
+      const tournamentRef = doc(db, 'tournaments', tournament.id);
+      await updateDoc(tournamentRef, {
+        knockoutBracket: firestoreBracket,
+        updatedAt: Date.now()
+      });
+
+      // Delete any existing mini-games for these matches since teams changed
+      const updatedMiniGames = miniGames.filter((g: any) => 
+        g.knockoutMatchId !== fromMatchId && g.knockoutMatchId !== toMatchId
+      );
+
+      if (updatedMiniGames.length !== miniGames.length) {
+        await updateDoc(tournamentRef, {
+          miniGames: updatedMiniGames
+        });
+      }
+
+      console.log('Teams swapped successfully:', fromTeamKey, '↔', toTeamKey);
+    } catch (error) {
+      console.error('Error swapping teams:', error);
+    }
+  }
+
+  async function handleEditKnockoutBracket(updatedBracket: any) {
+    if (!tournament?.id) return;
+
+    try {
+      // Convert back to Firestore format if needed
+      const firestoreBracket = convertKnockoutBracketForFirestore(updatedBracket);
+
+      // Update the tournament in Firestore
+      const tournamentRef = doc(db, 'tournaments', tournament.id);
+      await updateDoc(tournamentRef, {
+        knockoutBracket: firestoreBracket,
+        updatedAt: Date.now()
+      });
+
+      // Delete any existing knockout mini-games since the bracket changed
+      const updatedMiniGames = miniGames.filter((g: any) => !g.knockoutMatchId);
+
+      if (updatedMiniGames.length !== miniGames.length) {
+        await updateDoc(tournamentRef, {
+          miniGames: updatedMiniGames
+        });
+      }
+
+      console.log('Knockout bracket updated successfully');
+    } catch (error) {
+      console.error('Error updating knockout bracket:', error);
+    }
+  }
 
 
 
@@ -1707,6 +2030,13 @@ export default function LiveTournamentPage() {
         players={players}
         onCreateMiniGame={handleCreateKnockoutMiniGame}
         onUpdateMatch={handleUpdateKnockoutMatch}
+        isAdmin={isAdmin}
+        isSuperAdmin={isSuperAdmin}
+        onStartMiniGame={handleStartMiniGame}
+        onEndMiniGame={handleEndMiniGame}
+        onAddGoal={(miniId) => { setGoalDialogOpen(true); setGoalMiniGameId(miniId); }}
+        onEditMiniGame={openEditDialog}
+        onDrawResolution={handleDrawResolution}
       />
       
       {/* Knockout Mini-Games List */}
@@ -1744,11 +2074,31 @@ export default function LiveTournamentPage() {
                   mx: 'auto',
                   position: 'relative'
                 }} key={mini.id || idx}>
+                  {/* Creator Badge - styled like group stage */}
+                  {mini.createdBy && (
+                    <Box sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      bgcolor: mini.createdBy === user?.uid ? '#4caf50' : '#ff9800',
+                      color: 'white',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      zIndex: 10,
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}>
+                      {mini.createdBy === user?.uid ? 'שלך' : 'נוצר על ידי אחר'}
+                    </Box>
+                  )}
+                  
                   {/* Phase Badge */}
                   <Box sx={{
                     position: 'absolute',
                     top: 8,
-                    right: 8,
+                    right: mini.createdBy ? 120 : 8, // Move right if creator badge is present
                     bgcolor: '#d32f2f',
                     color: 'white',
                     px: 1.5,
@@ -1766,7 +2116,7 @@ export default function LiveTournamentPage() {
                     flexDirection: { xs: 'column', sm: 'row' }, 
                     justifyContent: 'space-between', 
                     alignItems: { xs: 'stretch', sm: 'flex-start' },
-                    pt: 3 // Add top padding for knockout games since they always have badges
+                    pt: mini.createdBy ? 4 : 3 // Add more top padding when creator badge is present
                   }}>
                     {/* Left side: Team A */}
                     <Box sx={{ flex: 'none', alignItems: 'flex-end', textAlign: 'right', pr: 0, display: 'flex', flexDirection: 'column' }}>
@@ -2179,6 +2529,15 @@ export default function LiveTournamentPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Tie-Breaking Dialog */}
+      <TieBreakingDialog
+        open={tieBreakingDialogOpen}
+        onClose={() => setTieBreakingDialogOpen(false)}
+        onConfirm={handleTieBreakingConfirm}
+        tournament={tournament}
+        ties={detectedTies}
+      />
     </AdminLayout>
   );
 }

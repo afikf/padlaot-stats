@@ -29,8 +29,19 @@ export default function GroupStageConfig({
     
     // Auto-select first option if none selected
     if (selectedOptionIndex === -1 && options.length > 0) {
-      setSelectedOptionIndex(0);
-      onDistributionChange(options[0].distribution);
+      // Prefer equal distribution (2 per group) over "best remaining" when possible
+      let preferredIndex = 0;
+      for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        // Check if this is an equal distribution (length equals number of groups)
+        if (option.distribution.length === numberOfGroups) {
+          preferredIndex = i;
+          break;
+        }
+      }
+      
+      setSelectedOptionIndex(preferredIndex);
+      onDistributionChange(options[preferredIndex].distribution);
     }
   }, [numberOfTeams, numberOfGroups, selectedOptionIndex, onDistributionChange]);
 
@@ -75,7 +86,14 @@ export default function GroupStageConfig({
     } else {
       // No "best remaining" - all elements are per-group qualifiers
       if (distribution.every(q => q === distribution[0])) {
-        return `${distribution[0]} לכל בית`;
+        const qualifiersPerGroup = distribution[0];
+        if (qualifiersPerGroup === 1) {
+          return `המקום הראשון מכל בית`;
+        } else if (qualifiersPerGroup === 2) {
+          return `2 המקומות הראשונים מכל בית`;
+        } else {
+          return `${qualifiersPerGroup} לכל בית`;
+        }
       } else {
         // Uneven distribution per group
         const uniqueQualifiers = [...new Set(distribution)].sort((a, b) => b - a);
@@ -137,11 +155,25 @@ export default function GroupStageConfig({
       // No "best remaining" - all elements are per-group qualifiers
       if (distribution.every(q => q === distribution[0])) {
         const qualifiersPerGroup = distribution[0];
-        return [
-          `${numberOfTeams} קבוצות יחולקו ל-${numberOfGroups} בתים`,
-          `${qualifiersPerGroup === 1 ? 'הקבוצה במקום הראשון' : `${qualifiersPerGroup} הקבוצות הראשונות`} מכל בית יעלו`,
-          `${totalQualifiers} קבוצות יעפילו ל${knockoutStage}`
-        ];
+        if (qualifiersPerGroup === 1) {
+          return [
+            `${numberOfTeams} קבוצות יחולקו ל-${numberOfGroups} בתים`,
+            `הקבוצה במקום הראשון מכל בית תעלה`,
+            `${totalQualifiers} קבוצות יעפילו ל${knockoutStage}`
+          ];
+        } else if (qualifiersPerGroup === 2) {
+          return [
+            `${numberOfTeams} קבוצות יחולקו ל-${numberOfGroups} בתים`,
+            `2 הקבוצות הראשונות מכל בית יעלו`,
+            `${totalQualifiers} קבוצות יעפילו ל${knockoutStage}`
+          ];
+        } else {
+          return [
+            `${numberOfTeams} קבוצות יחולקו ל-${numberOfGroups} בתים`,
+            `${qualifiersPerGroup} הקבוצות הראשונות מכל בית יעלו`,
+            `${totalQualifiers} קבוצות יעפילו ל${knockoutStage}`
+          ];
+        }
       } else {
         // Uneven distribution
         return [

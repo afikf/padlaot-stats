@@ -20,7 +20,12 @@ async function updateMiniGameInFirestore(tournamentId: string, miniGameId: strin
   await updateDoc(ref, { miniGames: updated });
 }
 
-export default function TournamentGameTimer({ miniGame, tournamentId, onAddGoal }: { miniGame: any, tournamentId: string, onAddGoal?: () => void }) {
+export default function TournamentGameTimer({ miniGame, tournamentId, onAddGoal, onEndGame }: { 
+  miniGame: any, 
+  tournamentId: string, 
+  onAddGoal?: () => void,
+  onEndGame?: () => void 
+}) {
   const [isActive, setIsActive] = useState(miniGame.status === 'live');
   const [isPaused, setIsPaused] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -88,11 +93,18 @@ export default function TournamentGameTimer({ miniGame, tournamentId, onAddGoal 
   async function handleFinish() {
     setIsActive(false);
     setIsPaused(false);
-    const now = new Date().toISOString();
-    await updateMiniGameInFirestore(tournamentId, miniGame.id, { 
-      status: 'complete', 
-      endTime: now 
-    });
+    
+    if (onEndGame) {
+      // Use the parent's end game function which handles draw resolution
+      onEndGame();
+    } else {
+      // Fallback to direct database update if no parent function provided
+      const now = new Date().toISOString();
+      await updateMiniGameInFirestore(tournamentId, miniGame.id, { 
+        status: 'complete', 
+        endTime: now 
+      });
+    }
   }
 
   if (miniGame.status === 'complete') return null;
